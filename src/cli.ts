@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
 import { appendEntry, makeId, readEntries } from "./ledger.js";
 import { formatExplain, type ExplainFormat } from "./explain.js";
 import { AuditEntrySchema, type AuditEntry } from "./schema.js";
 import { redactObject, RedactionError, type RedactMode } from "./redact.js";
+import { parseClawdbotJsonl } from "./adapters/clawdbot.js";
 
 function getArg(flag: string) {
   const i = process.argv.indexOf(flag);
@@ -33,6 +35,7 @@ Commands:
   explain <id> [--md] [--ledger <path>]
   explain last [<n>] [--md] [--ledger <path>]
   search <term> [--ledger <path>]
+  import clawdbot <file.jsonl> [--ledger <path>] [--dry-run] [--strict] [--no-redact]
 
 Types:
   file_write | file_edit | browser | api_call | exec | message_send | config_change | other
@@ -40,6 +43,10 @@ Types:
 Options:
   --strict     Reject entries containing detected secrets (fail instead of redact)
   --no-redact  Disable automatic redaction (not recommended)
+  --dry-run    Preview import without writing to ledger
+
+Import Formats:
+  clawdbot    Clawdbot tool-call events (JSONL with tool, arguments, result, timestamp, files)
 `);
 }
 
@@ -69,15 +76,15 @@ if (cmd === "add") {
       // runtime validated by schema
       type: type as AuditEntry["action"]["type"],
       summary,
-      artifacts: getArgs("--artifact")
+      artifacts: getArgs("--artifact"),
     },
     what_i_did: getArgs("--did"),
     assumptions: getArgs("--assume"),
     uncertainties: getArgs("--unsure"),
     verification: {
       suggested: getArgs("--suggest"),
-      observed: getArgs("--observed")
-    }
+      observed: getArgs("--observed"),
+    },
   };
 
   let validated = AuditEntrySchema.parse(entry);
@@ -145,7 +152,9 @@ if (cmd === "search") {
   }
   const low = term.toLowerCase();
   const entries = await loadAll();
-  const hits = entries.filter((e) => JSON.stringify(e).toLowerCase().includes(low));
+  const hits = entries.filter((e) =>
+    JSON.stringify(e).toLowerCase().includes(low),
+  );
   for (const e of hits) {
     console.log(`${e.id}  ${e.ts}  ${e.action.type}  ${e.action.summary}`);
   }
@@ -173,7 +182,9 @@ if (cmd === "explain") {
     // explain last [<n>] - n=1 means most recent, n=2 means second-to-last, etc.
     const n = Number(process.argv[4]) || 1;
     if (n < 1 || n > entries.length) {
-      console.error(`Invalid offset: ${n} (ledger has ${entries.length} entries)`);
+      console.error(
+        `Invalid offset: ${n} (ledger has ${entries.length} entries)`,
+      );
       process.exit(1);
     }
     entry = entries[entries.length - n];
@@ -187,6 +198,81 @@ if (cmd === "explain") {
   }
 
   console.log(formatExplain(entry, format));
+  process.exit(0);
+}
+
+if (cmd === "import") {
+  const format = process.argv[3];
+  const inputFile = process.argv[4];
+
+  if (format !== "clawdbot") {
+    console.error(`Unknown import format: ${format}`);
+    console.error("Supported formats: clawdbot");
+    process.exit(1);
+  }
+
+  if (!inputFile) {
+    console.error(
+      "Usage: import clawdbot <file.jsonl> [--ledger <path>] [--dry-run]",
+    );
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(inputFile)) {
+    console.error(`File not found: ${inputFile}`);
+    process.exit(1);
+  }
+
+  const dryRun = hasFlag("--dry-run");
+  const strictMode = hasFlag("--strict");
+  const noRedact = hasFlag("--no-redact");
+  const mode: RedactMode = strictMode ? "strict" : "redact";
+
+  const content = fs.readFileSync(inputFile, "utf8");
+  let imported = 0;
+  let skipped = 0;
+
+  for (const entry of parseClawdbotJsonl(content)) {
+    try {
+      let finalEntry = entry;
+
+      // Apply redaction unless explicitly disabled
+      if (!noRedact) {
+        try {
+          finalEntry = redactObject(entry, { mode });
+        } catch (e) {
+          if (e instanceof RedactionError) {
+            console.error(`Skipping entry (secrets detected): ${entry.id}`);
+            for (const match of e.matches) {
+              console.error(`  - ${match}`);
+            }
+            skipped++;
+            continue;
+          }
+          throw e;
+        }
+      }
+
+      if (dryRun) {
+        console.log(
+          `[dry-run] ${finalEntry.id}  ${finalEntry.action.type}  ${finalEntry.action.summary}`,
+        );
+      } else {
+        appendEntry({ ledgerPath }, finalEntry);
+        console.log(
+          `${finalEntry.id}  ${finalEntry.action.type}  ${finalEntry.action.summary}`,
+        );
+      }
+      imported++;
+    } catch (err) {
+      console.error(`Error processing entry: ${(err as Error).message}`);
+      skipped++;
+    }
+  }
+
+  console.log(
+    `\nImported: ${imported}, Skipped: ${skipped}${dryRun ? " (dry-run)" : ""}`,
+  );
   process.exit(0);
 }
 

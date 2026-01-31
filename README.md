@@ -3,12 +3,14 @@
 A tiny, inspectable action ledger for AI agents.
 
 Core principle:
+
 > If an agent can’t clearly answer **what did you do, what did you assume, and what are you not sure about?** — it’s not a worker, it’s a liability.
 
 ## What this repo provides
+
 - **Append-only JSONL ledger** format (no secrets; references only)
 - **CLI** to write/view/search entries
-- **Optional adapters** (coming) for agents (Clawdbot, etc.)
+- **Adapters** for agent platforms (Clawdbot, etc.)
 
 ## Quick start
 
@@ -35,6 +37,7 @@ node dist/cli.js search moltbook --ledger ./memory/action-ledger.jsonl
 By default, the CLI automatically redacts sensitive values before writing entries. This prevents accidental leakage of tokens, passwords, and API keys.
 
 **Detected patterns include:**
+
 - Sensitive key names: `token`, `password`, `api_key`, `secret`, `auth_token`, `ct0`, etc.
 - Inline secrets: `password=value`, `token: xyz`, etc. in string values
 - Bearer/Basic auth tokens
@@ -46,10 +49,12 @@ By default, the CLI automatically redacts sensitive values before writing entrie
 - PEM private key headers
 
 **CLI flags:**
+
 - `--strict` — Reject the entry entirely if secrets are detected (exit 1)
 - `--no-redact` — Disable automatic redaction (not recommended)
 
 **Programmatic usage:**
+
 ```javascript
 import { redactObject, redactString, containsSecrets } from "./dist/redact.js";
 
@@ -61,8 +66,26 @@ const clean = redactObject({ password: "secret123" });
 redactObject(data, { mode: "strict" }); // throws RedactionError
 
 // Check without modifying
-if (containsSecrets(data)) { /* ... */ }
+if (containsSecrets(data)) {
+  /* ... */
+}
 ```
+
+## Adapters
+
+### Clawdbot
+
+Import tool-call events from Clawdbot into the audit ledger:
+
+```bash
+# Import from JSONL file
+node dist/cli.js import clawdbot tool-calls.jsonl --ledger ./memory/action-ledger.jsonl
+
+# Preview without writing (dry-run)
+node dist/cli.js import clawdbot tool-calls.jsonl --dry-run
+```
+
+See: [`docs/adapters/clawdbot.md`](docs/adapters/clawdbot.md) for full documentation.
 
 ## Web Viewer
 
@@ -83,6 +106,7 @@ A static HTML viewer is available at [`docs/viewer/index.html`](docs/viewer/inde
 Or host it via GitHub Pages: `https://<user>.github.io/moltithread-audit-ledger/viewer/`
 
 ## Ledger entry schema
+
 See: `docs/SCHEMA.md`
 
 ## Evals
@@ -97,4 +121,5 @@ npm run eval
 See: `docs/EVALS.md` for setup and configuration.
 
 ## Roadmap
+
 See: `docs/ROADMAP.md`
