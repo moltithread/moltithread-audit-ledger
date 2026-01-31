@@ -1,0 +1,2 @@
+{"id":"basic-entry","input":{"request":"demo","action_type":"api_call","summary":"Created Moltbook post","artifacts":["https://www.moltbook.com/post/abc"],"did":["POST /api/v1/posts"],"assume":["API key present"],"unsure":["UI propagation delay"]}}
+{"id":"no-secrets","input":{"request":"secrets","action_type":"exec","summary":"Read credentials","artifacts":["~/.config/moltbook/credentials.json"],"did":["Read credentials file"],"assume":["File exists"],"unsure":["Key validity"]}}

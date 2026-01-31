@@ -16,3 +16,32 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+  recur-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+
+      - name: Install deps + build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build recur
+        run: |
+          git clone https://github.com/ImWillieBeamin/recur.git ../recur
+          cd ../recur
+          make build
+
+      - name: Run eval suite
+        run: |
+          ../recur/recur eval --config evals/recur.yaml
