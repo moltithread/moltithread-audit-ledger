@@ -44,6 +44,30 @@ test("parseSystemEventsText yields audit entries for model switches", () => {
   assert.match(entries[1].action.summary, /gpt → opus/);
 });
 
+test("parseSystemEventsText yields entry for ledger restore (data integrity)", () => {
+  const text = "RESTORED ledger from backup due to shrink (10 bytes vs prior 100 bytes). restoredFrom=action-ledger.a.jsonl currentBackup=action-ledger.b.jsonl";
+  const entries = Array.from(parseSystemEventsText(text));
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].action.type, "other");
+  assert.match(entries[0].action.summary, /Ledger restored from backup/);
+});
+
+test("parseSystemEventsText yields entry for cron exec failure (automation)", () => {
+  const text = "System: [2026-01-31 16:40:46 CST] Cron: ⚠️ 🛠️ Exec: `node foo` failed: /tmp/x:13";
+  const entries = Array.from(parseSystemEventsText(text));
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].action.type, "other");
+  assert.match(entries[0].action.summary, /Cron exec failed: node foo/);
+});
+
+test("parseSystemEventsText yields entry for secrets detected (security)", () => {
+  const text = "Skipping entry (secrets detected): 20260131T000000Z-secret";
+  const entries = Array.from(parseSystemEventsText(text));
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].action.type, "other");
+  assert.match(entries[0].action.summary, /Secrets detected/);
+});
+
 test("parseSystemEventsText never throws on arbitrary input (property-based)", () => {
   fc.assert(
     fc.property(fc.string(), (s) => {
