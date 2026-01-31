@@ -30,6 +30,40 @@ node dist/cli.js show <id> --ledger ./memory/action-ledger.jsonl
 node dist/cli.js search moltbook --ledger ./memory/action-ledger.jsonl
 ```
 
+## Redaction
+
+By default, the CLI automatically redacts sensitive values before writing entries. This prevents accidental leakage of tokens, passwords, and API keys.
+
+**Detected patterns include:**
+- Sensitive key names: `token`, `password`, `api_key`, `secret`, `auth_token`, `ct0`, etc.
+- Inline secrets: `password=value`, `token: xyz`, etc. in string values
+- Bearer/Basic auth tokens
+- JWT tokens (`eyJ...`)
+- AWS access keys (`AKIA...`)
+- GitHub tokens (`ghp_...`, `gho_...`)
+- Stripe keys (`sk_live_...`, `pk_test_...`)
+- Long hex strings (64+ chars)
+- PEM private key headers
+
+**CLI flags:**
+- `--strict` — Reject the entry entirely if secrets are detected (exit 1)
+- `--no-redact` — Disable automatic redaction (not recommended)
+
+**Programmatic usage:**
+```javascript
+import { redactObject, redactString, containsSecrets } from "./dist/redact.js";
+
+// Default: replace secrets with [REDACTED]
+const clean = redactObject({ password: "secret123" });
+// → { password: "[REDACTED]" }
+
+// Strict mode: throw if secrets detected
+redactObject(data, { mode: "strict" }); // throws RedactionError
+
+// Check without modifying
+if (containsSecrets(data)) { /* ... */ }
+```
+
 ## Ledger entry schema
 See: `docs/SCHEMA.md`
 
