@@ -7,7 +7,9 @@ export type LedgerOptions = {
   ledgerPath: string;
 };
 
-export async function* readEntries(opts: LedgerOptions): AsyncGenerator<AuditEntry> {
+export async function* readEntries(
+  opts: LedgerOptions,
+): AsyncGenerator<AuditEntry> {
   if (!fs.existsSync(opts.ledgerPath)) return;
 
   const stream = fs.createReadStream(opts.ledgerPath, { encoding: "utf8" });

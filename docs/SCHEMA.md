@@ -3,6 +3,7 @@
 Entries are JSON objects written as JSONL (one object per line).
 
 ## Fields
+
 - `id` (string): unique id
 - `ts` (string, ISO datetime)
 - `context` (optional)
@@ -19,4 +20,5 @@ Entries are JSON objects written as JSONL (one object per line).
   - `observed`: what’s already confirmed
 
 ## Example
+
 See `docs/examples/example-entry.json`.

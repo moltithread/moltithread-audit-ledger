@@ -2,7 +2,10 @@ import type { AuditEntry } from "./schema.js";
 
 export type ExplainFormat = "text" | "markdown";
 
-export function formatExplain(entry: AuditEntry, format: ExplainFormat = "text"): string {
+export function formatExplain(
+  entry: AuditEntry,
+  format: ExplainFormat = "text",
+): string {
   const lines: string[] = [];
 
   if (format === "markdown") {
@@ -50,7 +53,9 @@ export function formatExplain(entry: AuditEntry, format: ExplainFormat = "text")
   } else {
     // Plain text format
     lines.push(`${entry.action.summary}`);
-    lines.push(`ID: ${entry.id}  |  Time: ${entry.ts}  |  Type: ${entry.action.type}`);
+    lines.push(
+      `ID: ${entry.id}  |  Time: ${entry.ts}  |  Type: ${entry.action.type}`,
+    );
     lines.push("");
 
     if (entry.action.artifacts.length > 0) {
