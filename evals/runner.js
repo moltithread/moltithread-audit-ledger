@@ -11,7 +11,7 @@ import { AuditEntrySchema } from "../dist/schema.js";
 import { appendEntry, readEntries } from "../dist/ledger.js";
 import { redactObject, RedactionError, findSensitivePatterns } from "../dist/redact.js";
 import { parseClawdbotJsonl } from "../dist/adapters/clawdbot.js";
-import { parseClaudeCodeJsonl } from "../dist/adapters/claude_code.js";
+import { parseClaudeCodeJsonl } from "../dist/adapters/claude-code.js";
 
 function readStdin() {
   return fs.readFileSync(0, "utf8");
