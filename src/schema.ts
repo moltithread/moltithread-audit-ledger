@@ -68,3 +68,42 @@ export type Context = z.infer<typeof ContextSchema>;
 export function isActionType(value: string): value is ActionType {
   return (ACTION_TYPES as readonly string[]).includes(value);
 }
+
+/**
+ * Single-letter aliases for action types.
+ * Provides convenient shortcuts for CLI usage.
+ */
+export const TYPE_ALIASES = {
+  e: "exec",
+  x: "exec",
+  w: "file_write",
+  d: "file_edit",
+  b: "browser",
+  a: "api_call",
+  m: "message_send",
+  c: "config_change",
+  o: "other",
+} as const satisfies Record<string, ActionType>;
+
+export type TypeAlias = keyof typeof TYPE_ALIASES;
+
+/**
+ * Check if a string is a valid type alias.
+ */
+export function isTypeAlias(value: string): value is TypeAlias {
+  return value in TYPE_ALIASES;
+}
+
+/**
+ * Resolve a type alias or full type name to an ActionType.
+ * Returns undefined if the value is neither a valid alias nor a valid type.
+ */
+export function resolveTypeAlias(value: string): ActionType | undefined {
+  if (isTypeAlias(value)) {
+    return TYPE_ALIASES[value];
+  }
+  if (isActionType(value)) {
+    return value;
+  }
+  return undefined;
+}
