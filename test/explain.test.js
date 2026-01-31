@@ -8,15 +8,15 @@ const sampleEntry = {
   action: {
     type: "file_edit",
     summary: "Updated README with install instructions",
-    artifacts: ["README.md"]
+    artifacts: ["README.md"],
   },
   what_i_did: ["Added npm install command", "Fixed typo in heading"],
   assumptions: ["User has Node.js 18+ installed"],
   uncertainties: ["Not sure if yarn should also be documented"],
   verification: {
     suggested: ["Run npm install to verify"],
-    observed: []
-  }
+    observed: [],
+  },
 };
 
 test("formatExplain returns text format by default", () => {
@@ -49,7 +49,7 @@ test("formatExplain handles empty arrays gracefully", () => {
     action: { type: "other", summary: "Minimal action", artifacts: [] },
     what_i_did: [],
     assumptions: [],
-    uncertainties: []
+    uncertainties: [],
   };
   const out = formatExplain(minimal);
   assert.ok(out.includes("Minimal action"));

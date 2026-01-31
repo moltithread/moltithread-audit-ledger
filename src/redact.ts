@@ -6,36 +6,42 @@
  *   - "strict": throws RedactionError if any secrets are detected
  */
 
+/** Error thrown when secrets are detected in strict mode */
 export class RedactionError extends Error {
-  constructor(
-    message: string,
-    public matches: string[]
-  ) {
+  /** List of detected secret patterns with their locations */
+  public readonly matches: readonly string[];
+
+  constructor(message: string, matches: readonly string[]) {
     super(message);
     this.name = "RedactionError";
+    this.matches = matches;
+    // Ensure proper prototype chain for instanceof checks
+    Object.setPrototypeOf(this, RedactionError.prototype);
   }
 }
 
+/** Redaction mode: "redact" replaces secrets, "strict" throws on detection */
 export type RedactMode = "redact" | "strict";
 
-export type RedactOptions = {
+/** Configuration options for redaction operations */
+export interface RedactOptions {
   /** Mode: "redact" replaces secrets, "strict" throws if secrets found */
   mode?: RedactMode;
   /** Additional key patterns to treat as sensitive (case-insensitive) */
-  extraKeyPatterns?: RegExp[];
+  extraKeyPatterns?: readonly RegExp[];
   /** Additional value patterns to treat as sensitive */
-  extraValuePatterns?: RegExp[];
+  extraValuePatterns?: readonly RegExp[];
   /** Replacement string for redacted values */
   replacement?: string;
-};
+}
 
-const DEFAULT_REPLACEMENT = "[REDACTED]";
+const DEFAULT_REPLACEMENT = "[REDACTED]" as const;
 
 /**
  * Key name patterns that indicate sensitive data (case-insensitive).
  * Matches common credential/token field names.
  */
-const SENSITIVE_KEY_PATTERNS: RegExp[] = [
+const SENSITIVE_KEY_PATTERNS: readonly RegExp[] = [
   /^(api[_-]?key|apikey)$/i,
   /^(auth[_-]?token|authtoken)$/i,
   /^(access[_-]?token|accesstoken)$/i,
@@ -60,7 +66,7 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
  * Value patterns that indicate sensitive data regardless of key name.
  * These are designed to be conservative to avoid false positives.
  */
-const SENSITIVE_VALUE_PATTERNS: RegExp[] = [
+const SENSITIVE_VALUE_PATTERNS: readonly RegExp[] = [
   // Bearer tokens: "Bearer <token>" or "bearer <token>"
   /\bBearer\s+[A-Za-z0-9\-_\.]{20,}\b/i,
 
@@ -107,25 +113,39 @@ const SENSITIVE_VALUE_PATTERNS: RegExp[] = [
 
 /**
  * Check if a key name is sensitive.
+ *
+ * @param key - The key name to check
+ * @param extraPatterns - Additional patterns to check against
+ * @returns true if the key matches a sensitive pattern
  */
 export function isSensitiveKey(
   key: string,
-  extraPatterns: RegExp[] = []
+  extraPatterns: readonly RegExp[] = [],
 ): boolean {
-  const allPatterns = [...SENSITIVE_KEY_PATTERNS, ...extraPatterns];
+  const allPatterns: readonly RegExp[] = [
+    ...SENSITIVE_KEY_PATTERNS,
+    ...extraPatterns,
+  ];
   return allPatterns.some((p) => p.test(key));
 }
 
 /**
  * Check if a value contains sensitive patterns.
  * Returns array of matched patterns for error reporting.
+ *
+ * @param value - The string value to scan
+ * @param extraPatterns - Additional patterns to check against
+ * @returns Array of truncated match previews (empty if no secrets found)
  */
 export function findSensitivePatterns(
   value: string,
-  extraPatterns: RegExp[] = []
+  extraPatterns: readonly RegExp[] = [],
 ): string[] {
   const matches: string[] = [];
-  const allPatterns = [...SENSITIVE_VALUE_PATTERNS, ...extraPatterns];
+  const allPatterns: readonly RegExp[] = [
+    ...SENSITIVE_VALUE_PATTERNS,
+    ...extraPatterns,
+  ];
 
   for (const pattern of allPatterns) {
     const match = value.match(pattern);
@@ -142,18 +162,29 @@ export function findSensitivePatterns(
 
 /**
  * Redact sensitive patterns from a string value.
+ *
+ * @param value - The string to redact
+ * @param replacement - Text to replace secrets with
+ * @param extraPatterns - Additional patterns to redact
+ * @returns The redacted string
  */
 export function redactValue(
   value: string,
   replacement: string = DEFAULT_REPLACEMENT,
-  extraPatterns: RegExp[] = []
+  extraPatterns: readonly RegExp[] = [],
 ): string {
   let result = value;
-  const allPatterns = [...SENSITIVE_VALUE_PATTERNS, ...extraPatterns];
+  const allPatterns: readonly RegExp[] = [
+    ...SENSITIVE_VALUE_PATTERNS,
+    ...extraPatterns,
+  ];
 
   for (const pattern of allPatterns) {
     // Create a global version of the pattern
-    const globalPattern = new RegExp(pattern.source, pattern.flags + "g");
+    const flags = pattern.flags.includes("g")
+      ? pattern.flags
+      : pattern.flags + "g";
+    const globalPattern = new RegExp(pattern.source, flags);
     result = result.replace(globalPattern, replacement);
   }
 
@@ -163,11 +194,15 @@ export function redactValue(
 /**
  * Recursively redact sensitive values in an object.
  * Handles nested objects, arrays, and string values.
+ * Preserves the structure while replacing sensitive content.
+ *
+ * @typeParam T - The input object type
+ * @param obj - Object to redact
+ * @param opts - Redaction options
+ * @returns A new object with sensitive values redacted
+ * @throws {RedactionError} In strict mode when secrets are detected
  */
-export function redactObject<T>(
-  obj: T,
-  opts: RedactOptions = {}
-): T {
+export function redactObject<T>(obj: T, opts: RedactOptions = {}): T {
   const {
     mode = "redact",
     extraKeyPatterns = [],
@@ -177,7 +212,7 @@ export function redactObject<T>(
 
   const detectedSecrets: string[] = [];
 
-  function process(value: unknown, keyPath: string): unknown {
+  function processValue(value: unknown, keyPath: string): unknown {
     if (value === null || value === undefined) {
       return value;
     }
@@ -195,12 +230,12 @@ export function redactObject<T>(
     }
 
     if (Array.isArray(value)) {
-      return value.map((item, i) => process(item, `${keyPath}[${i}]`));
+      return value.map((item, i) => processValue(item, `${keyPath}[${i}]`));
     }
 
     if (typeof value === "object") {
       const result: Record<string, unknown> = {};
-      for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      for (const [key, val] of Object.entries(value)) {
         const currentPath = keyPath ? `${keyPath}.${key}` : key;
 
         // Check if the key itself indicates sensitive data
@@ -216,7 +251,7 @@ export function redactObject<T>(
           }
         }
 
-        result[key] = process(val, currentPath);
+        result[key] = processValue(val, currentPath);
       }
       return result;
     }
@@ -225,12 +260,12 @@ export function redactObject<T>(
     return value;
   }
 
-  const processed = process(obj, "");
+  const processed = processValue(obj, "");
 
   if (mode === "strict" && detectedSecrets.length > 0) {
     throw new RedactionError(
       `Detected ${detectedSecrets.length} potential secret(s) in data`,
-      detectedSecrets
+      detectedSecrets,
     );
   }
 
@@ -239,11 +274,13 @@ export function redactObject<T>(
 
 /**
  * Redact a single string value (convenience wrapper).
+ *
+ * @param value - String to redact
+ * @param opts - Redaction options
+ * @returns The redacted string
+ * @throws {RedactionError} In strict mode when secrets are detected
  */
-export function redactString(
-  value: string,
-  opts: RedactOptions = {}
-): string {
+export function redactString(value: string, opts: RedactOptions = {}): string {
   const {
     mode = "redact",
     extraValuePatterns = [],
@@ -256,7 +293,7 @@ export function redactString(
     if (mode === "strict") {
       throw new RedactionError(
         `Detected potential secret(s) in string`,
-        patterns
+        patterns,
       );
     }
     return redactValue(value, replacement, extraValuePatterns);
@@ -268,11 +305,16 @@ export function redactString(
 /**
  * Check if an object contains any secrets without modifying it.
  * Returns true if secrets are detected.
+ *
+ * @param obj - Object to check
+ * @param extraKeyPatterns - Additional key patterns to check
+ * @param extraValuePatterns - Additional value patterns to check
+ * @returns true if secrets are detected, false otherwise
  */
 export function containsSecrets<T>(
   obj: T,
-  extraKeyPatterns: RegExp[] = [],
-  extraValuePatterns: RegExp[] = []
+  extraKeyPatterns: readonly RegExp[] = [],
+  extraValuePatterns: readonly RegExp[] = [],
 ): boolean {
   try {
     redactObject(obj, {

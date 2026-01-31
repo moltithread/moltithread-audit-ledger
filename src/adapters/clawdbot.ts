@@ -5,7 +5,11 @@
  */
 
 import { z } from "zod";
-import { AuditEntrySchema, type AuditEntry } from "../schema.js";
+import {
+  AuditEntrySchema,
+  type AuditEntry,
+  type ActionType,
+} from "../schema.js";
 import { makeId } from "../ledger.js";
 
 /**
@@ -32,7 +36,7 @@ export type ClawdbotToolCall = z.infer<typeof ClawdbotToolCallSchema>;
 /**
  * Map Clawdbot tool names to audit-ledger action types.
  */
-const TOOL_TYPE_MAP: Record<string, AuditEntry["action"]["type"]> = {
+const TOOL_TYPE_MAP: Readonly<Record<string, ActionType>> = {
   // File operations
   Read: "file_write", // Read is technically not a write, but we log it as file access
   Write: "file_write",
@@ -62,7 +66,7 @@ const TOOL_TYPE_MAP: Record<string, AuditEntry["action"]["type"]> = {
 /**
  * Determine the action type for a Clawdbot tool.
  */
-function getActionType(toolName: string): AuditEntry["action"]["type"] {
+function getActionType(toolName: string): ActionType {
   return TOOL_TYPE_MAP[toolName] ?? "other";
 }
 
@@ -205,6 +209,7 @@ function generateWhatIDid(event: ClawdbotToolCall): string[] {
   return steps;
 }
 
+/** Options for transforming tool calls */
 export interface TransformOptions {
   /** Override the generated ID */
   id?: string;

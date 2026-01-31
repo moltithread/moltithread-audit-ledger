@@ -21,16 +21,12 @@
     "Agent was already claimed",
     "API key had permission to create posts"
   ],
-  "uncertainties": [
-    "Whether UI would reflect the new post immediately"
-  ],
+  "uncertainties": ["Whether UI would reflect the new post immediately"],
   "verification": {
     "suggested": [
       "Open the submolt page and confirm the post appears",
       "GET /api/v1/posts/<id>"
     ],
-    "observed": [
-      "Post appeared on https://www.moltbook.com/m/deglazing"
-    ]
+    "observed": ["Post appeared on https://www.moltbook.com/m/deglazing"]
   }
 }
