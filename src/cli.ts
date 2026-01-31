@@ -3,6 +3,7 @@
 import { appendEntry, makeId, readEntries } from "./ledger.js";
 import { formatExplain, type ExplainFormat } from "./explain.js";
 import { AuditEntrySchema, type AuditEntry } from "./schema.js";
+import { redactObject, RedactionError, type RedactMode } from "./redact.js";
 
 function getArg(flag: string) {
   const i = process.argv.indexOf(flag);
@@ -26,7 +27,7 @@ function usage() {
   console.log(`audit-ledger
 
 Commands:
-  add --type <type> --summary <text> [--artifact <x> ...] [--did <x> ...] [--assume <x> ...] [--unsure <x> ...] [--suggest <x> ...] [--observed <x> ...] [--ledger <path>]
+  add --type <type> --summary <text> [--artifact <x> ...] [--did <x> ...] [--assume <x> ...] [--unsure <x> ...] [--suggest <x> ...] [--observed <x> ...] [--ledger <path>] [--strict] [--no-redact]
   last <n> [--ledger <path>]
   show <id> [--ledger <path>]
   explain <id> [--md] [--ledger <path>]
@@ -35,6 +36,10 @@ Commands:
 
 Types:
   file_write | file_edit | browser | api_call | exec | message_send | config_change | other
+
+Options:
+  --strict     Reject entries containing detected secrets (fail instead of redact)
+  --no-redact  Disable automatic redaction (not recommended)
 `);
 }
 
@@ -54,6 +59,9 @@ if (cmd === "add") {
     process.exit(1);
   }
 
+  const strictMode = hasFlag("--strict");
+  const noRedact = hasFlag("--no-redact");
+
   const entry: AuditEntry = {
     id: makeId(),
     ts: new Date().toISOString(),
@@ -72,7 +80,26 @@ if (cmd === "add") {
     }
   };
 
-  const validated = AuditEntrySchema.parse(entry);
+  let validated = AuditEntrySchema.parse(entry);
+
+  // Apply redaction unless explicitly disabled
+  if (!noRedact) {
+    const mode: RedactMode = strictMode ? "strict" : "redact";
+    try {
+      validated = redactObject(validated, { mode });
+    } catch (e) {
+      if (e instanceof RedactionError) {
+        console.error("Error: Entry contains potential secrets:");
+        for (const match of e.matches) {
+          console.error(`  - ${match}`);
+        }
+        console.error("\nUse --no-redact to bypass (not recommended).");
+        process.exit(1);
+      }
+      throw e;
+    }
+  }
+
   appendEntry({ ledgerPath }, validated);
   console.log(validated.id);
   process.exit(0);

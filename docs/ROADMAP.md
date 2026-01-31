@@ -7,7 +7,7 @@
 - [ ] GitHub Actions CI (lint/test)
 
 ## v0.2
-- [ ] Redaction helpers (strip tokens from artifacts/strings)
+- [x] Redaction helpers (strip tokens from artifacts/strings)
 - [ ] “Explain” command: print the 3 questions neatly
 - [ ] Pluggable sinks (file, sqlite)
 
