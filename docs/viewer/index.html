@@ -98,6 +98,18 @@
         background: var(--accent-hover);
       }
 
+      .btn.btn-secondary {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .btn.btn-secondary:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: rgba(88, 166, 255, 0.05);
+      }
+
       /* Filters */
       .filters {
         display: none;
@@ -373,10 +385,16 @@
         <div class="drop-zone-icon">📄</div>
         <p>Drag & drop a .jsonl file here</p>
         <p>or</p>
-        <label class="btn">
-          Choose File
-          <input type="file" id="fileInput" accept=".jsonl,.json,.txt" />
-        </label>
+        <div style="display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
+          <label class="btn" style="margin:0;">
+            Choose File
+            <input type="file" id="fileInput" accept=".jsonl,.json,.txt" />
+          </label>
+          <button class="btn btn-secondary" id="loadFromLedger" type="button">
+            Load from /ledger
+          </button>
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.8rem;">(If you’re on the audit-ledger server, this pulls the latest ledger automatically.)</p>
       </div>
 
       <div class="filters" id="filters">
@@ -415,6 +433,7 @@
       // Elements
       const dropZone = document.getElementById("dropZone");
       const fileInput = document.getElementById("fileInput");
+      const loadFromLedgerBtn = document.getElementById("loadFromLedger");
       const filters = document.getElementById("filters");
       const searchInput = document.getElementById("searchInput");
       const typeSelect = document.getElementById("typeSelect");
@@ -447,6 +466,35 @@
         const file = e.target.files[0];
         if (file) loadFile(file);
       });
+
+      // Load latest ledger directly from the hosting server (same origin)
+      if (loadFromLedgerBtn) {
+        loadFromLedgerBtn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          loadFromLedgerBtn.disabled = true;
+          const prev = loadFromLedgerBtn.textContent;
+          loadFromLedgerBtn.textContent = "Loading…";
+
+          try {
+            const resp = await fetch("/ledger", { cache: "no-store" });
+            if (!resp.ok) {
+              throw new Error(`HTTP ${resp.status}`);
+            }
+            const text = await resp.text();
+            parseJSONL(text);
+          } catch (err) {
+            console.error(err);
+            alert(
+              "Failed to load /ledger. If you are not using the audit-ledger server, download the JSONL and drag/drop it instead.",
+            );
+          } finally {
+            loadFromLedgerBtn.disabled = false;
+            loadFromLedgerBtn.textContent = prev;
+          }
+        });
+      }
 
       function loadFile(file) {
         const reader = new FileReader();
