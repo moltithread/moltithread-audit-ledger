@@ -3,3 +3,6 @@ node_modules
 /tmp-ledger.jsonl
 .DS_Store
 .env
+
+# Recur eval artifacts
+evals/out/
