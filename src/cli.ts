@@ -2,9 +2,20 @@
 
 import fs from "node:fs";
 import readline from "node:readline";
-import { appendEntry, makeId, readEntries, type LedgerOptions } from "./ledger.js";
+import {
+  appendEntry,
+  makeId,
+  readEntries,
+  type LedgerOptions,
+} from "./ledger.js";
 import { formatExplain, type ExplainFormat } from "./explain.js";
-import { AuditEntrySchema, ACTION_TYPES, isActionType, type AuditEntry, type ActionType } from "./schema.js";
+import {
+  AuditEntrySchema,
+  ACTION_TYPES,
+  isActionType,
+  type AuditEntry,
+  type ActionType,
+} from "./schema.js";
 import { redactObject, RedactionError, type RedactMode } from "./redact.js";
 import { parseClawdbotJsonl } from "./adapters/clawdbot.js";
 
@@ -20,7 +31,8 @@ const CYAN = "\x1b[36m";
 const RESET = "\x1b[0m";
 
 const isatty = process.stderr.isTTY;
-const c = (code: string, text: string): string => (isatty ? code + text + RESET : text);
+const c = (code: string, text: string): string =>
+  isatty ? code + text + RESET : text;
 
 // =============================================================================
 // Argument parsing helpers (improved type safety)
@@ -133,7 +145,7 @@ function parseActionType(typeArg: string): ActionType {
   if (!isActionType(typeArg)) {
     exitWithError(
       `Invalid type: "${typeArg}"`,
-      `Valid types: ${ACTION_TYPES.join(", ")}`
+      `Valid types: ${ACTION_TYPES.join(", ")}`,
     );
   }
   return typeArg;
@@ -155,7 +167,10 @@ function getRedactionConfig(): RedactionConfig {
 }
 
 /** Apply redaction to an entry, handling errors with nice output */
-function applyRedaction(entry: AuditEntry, config: RedactionConfig): AuditEntry {
+function applyRedaction(
+  entry: AuditEntry,
+  config: RedactionConfig,
+): AuditEntry {
   if (!config.enabled) return entry;
 
   try {
@@ -167,7 +182,9 @@ function applyRedaction(entry: AuditEntry, config: RedactionConfig): AuditEntry 
         console.error(`  ${c(DIM, "•")} ${match}`);
       }
       console.error("");
-      console.error(`${c(DIM, "hint:")} Use --no-redact to bypass (not recommended)`);
+      console.error(
+        `${c(DIM, "hint:")} Use --no-redact to bypass (not recommended)`,
+      );
       process.exit(1);
     }
     throw e;
@@ -302,7 +319,7 @@ async function handleAdd(ledgerPath: string): Promise<void> {
     if (process.stdin.isTTY) {
       exitWithError(
         "--json requires input from stdin",
-        "echo '{...}' | audit-ledger add --json"
+        "echo '{...}' | audit-ledger add --json",
       );
     }
 
@@ -315,7 +332,10 @@ async function handleAdd(ledgerPath: string): Promise<void> {
     try {
       parsed = JSON.parse(input);
     } catch {
-      exitWithError("Invalid JSON input", "Ensure valid JSON is piped to stdin");
+      exitWithError(
+        "Invalid JSON input",
+        "Ensure valid JSON is piped to stdin",
+      );
     }
 
     // Allow shorthand: just action fields, we'll add id/ts
@@ -343,7 +363,10 @@ async function handleAdd(ledgerPath: string): Promise<void> {
     try {
       entry = AuditEntrySchema.parse(data);
     } catch (e) {
-      exitWithError("Invalid entry schema", e instanceof Error ? e.message : String(e));
+      exitWithError(
+        "Invalid entry schema",
+        e instanceof Error ? e.message : String(e),
+      );
     }
   } else {
     // Regular flag-based input
@@ -353,14 +376,14 @@ async function handleAdd(ledgerPath: string): Promise<void> {
     if (!typeArg) {
       exitWithError(
         "Missing required flag: --type",
-        `Valid types: ${ACTION_TYPES.join(", ")}`
+        `Valid types: ${ACTION_TYPES.join(", ")}`,
       );
     }
 
     if (!summary) {
       exitWithError(
         "Missing required flag: --summary",
-        'Provide a brief description: --summary "Updated config"'
+        'Provide a brief description: --summary "Updated config"',
       );
     }
 
@@ -379,17 +402,24 @@ async function handleAdd(ledgerPath: string): Promise<void> {
       if (process.stdin.isTTY) {
         exitWithError(
           "--stdin requires piped input",
-          'echo "line1\\nline2" | audit-ledger add --stdin did ...'
+          'echo "line1\\nline2" | audit-ledger add --stdin did ...',
         );
       }
 
-      const validFields = ["did", "assume", "unsure", "suggest", "observed", "artifact"] as const;
+      const validFields = [
+        "did",
+        "assume",
+        "unsure",
+        "suggest",
+        "observed",
+        "artifact",
+      ] as const;
       type StdinField = (typeof validFields)[number];
 
       if (!validFields.includes(stdinField as StdinField)) {
         exitWithError(
           `Invalid --stdin field: "${stdinField}"`,
-          `Valid fields: ${validFields.join(", ")}`
+          `Valid fields: ${validFields.join(", ")}`,
         );
       }
 
@@ -437,7 +467,10 @@ async function handleAdd(ledgerPath: string): Promise<void> {
     try {
       entry = AuditEntrySchema.parse(entry);
     } catch (e) {
-      exitWithError("Invalid entry", e instanceof Error ? e.message : String(e));
+      exitWithError(
+        "Invalid entry",
+        e instanceof Error ? e.message : String(e),
+      );
     }
   }
 
@@ -478,7 +511,10 @@ async function handleShow(ledgerPath: string): Promise<void> {
   const entry = entries.find((x) => x.id === id);
 
   if (!entry) {
-    exitWithError(`Entry not found: "${id}"`, "Use 'audit-ledger last' to see recent IDs");
+    exitWithError(
+      `Entry not found: "${id}"`,
+      "Use 'audit-ledger last' to see recent IDs",
+    );
   }
 
   console.log(JSON.stringify(entry, null, 2));
@@ -500,7 +536,7 @@ async function handleSearch(ledgerPath: string): Promise<void> {
 
   const searchLower = term.toLowerCase();
   const hits = entries.filter((e) =>
-    JSON.stringify(e).toLowerCase().includes(searchLower)
+    JSON.stringify(e).toLowerCase().includes(searchLower),
   );
 
   if (hits.length === 0) {
@@ -519,7 +555,7 @@ async function handleExplain(ledgerPath: string): Promise<void> {
   if (!arg) {
     exitWithError(
       "Missing entry reference",
-      "Usage: audit-ledger explain <id>  or  audit-ledger explain last [<n>]"
+      "Usage: audit-ledger explain <id>  or  audit-ledger explain last [<n>]",
     );
   }
 
@@ -543,7 +579,7 @@ async function handleExplain(ledgerPath: string): Promise<void> {
     if (n > entries.length) {
       exitWithError(
         `Offset ${n} exceeds ledger size (${entries.length} entries)`,
-        `Use a value between 1 and ${entries.length}`
+        `Use a value between 1 and ${entries.length}`,
       );
     }
 
@@ -553,7 +589,10 @@ async function handleExplain(ledgerPath: string): Promise<void> {
   }
 
   if (!entry) {
-    exitWithError(`Entry not found: "${arg}"`, "Use 'audit-ledger last' to see recent IDs");
+    exitWithError(
+      `Entry not found: "${arg}"`,
+      "Use 'audit-ledger last' to see recent IDs",
+    );
   }
 
   console.log(formatExplain(entry, format));
@@ -566,14 +605,14 @@ async function handleImport(ledgerPath: string): Promise<void> {
   if (format !== "clawdbot") {
     exitWithError(
       `Unknown import format: ${format ?? "(none)"}`,
-      "Supported formats: clawdbot"
+      "Supported formats: clawdbot",
     );
   }
 
   if (!inputFile) {
     exitWithError(
       "Missing input file",
-      "Usage: audit-ledger import clawdbot <file.jsonl> [--dry-run]"
+      "Usage: audit-ledger import clawdbot <file.jsonl> [--dry-run]",
     );
   }
 
@@ -622,7 +661,9 @@ async function handleImport(ledgerPath: string): Promise<void> {
     }
   }
 
-  console.log(`\nImported: ${imported}, Skipped: ${skipped}${dryRun ? " (dry-run)" : ""}`);
+  console.log(
+    `\nImported: ${imported}, Skipped: ${skipped}${dryRun ? " (dry-run)" : ""}`,
+  );
 }
 
 // =============================================================================
@@ -633,7 +674,12 @@ async function main(): Promise<void> {
   const command = process.argv[2];
   const ledgerPath = resolveLedgerPath();
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (
+    !command ||
+    command === "help" ||
+    command === "--help" ||
+    command === "-h"
+  ) {
     printUsage();
     return;
   }
@@ -663,7 +709,10 @@ async function main(): Promise<void> {
       await handleImport(ledgerPath);
       break;
     default:
-      exitWithError(`Unknown command: "${command}"`, "Run 'audit-ledger help' for available commands");
+      exitWithError(
+        `Unknown command: "${command}"`,
+        "Run 'audit-ledger help' for available commands",
+      );
   }
 }
 

@@ -5,7 +5,11 @@
  */
 
 import { z } from "zod";
-import { AuditEntrySchema, type AuditEntry, type ActionType } from "../schema.js";
+import {
+  AuditEntrySchema,
+  type AuditEntry,
+  type ActionType,
+} from "../schema.js";
 import { makeId } from "../ledger.js";
 
 /**

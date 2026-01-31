@@ -1,551 +1,589 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Audit Ledger Viewer</title>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --bg-secondary: #161b22;
-      --border: #30363d;
-      --text: #c9d1d9;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #79b8ff;
-      --success: #3fb950;
-      --warning: #d29922;
-      --error: #f85149;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audit Ledger Viewer</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --bg-secondary: #161b22;
+        --border: #30363d;
+        --text: #c9d1d9;
+        --text-muted: #8b949e;
+        --accent: #58a6ff;
+        --accent-hover: #79b8ff;
+        --success: #3fb950;
+        --warning: #d29922;
+        --error: #f85149;
+      }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      min-height: 100vh;
-    }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        min-height: 100vh;
+      }
 
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 2rem 1rem;
-    }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+      }
 
-    h1 {
-      font-size: 1.75rem;
-      margin-bottom: 0.5rem;
-    }
+      h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+      }
 
-    .subtitle {
-      color: var(--text-muted);
-      margin-bottom: 2rem;
-    }
+      .subtitle {
+        color: var(--text-muted);
+        margin-bottom: 2rem;
+      }
 
-    /* Drop zone */
-    .drop-zone {
-      border: 2px dashed var(--border);
-      border-radius: 8px;
-      padding: 3rem 2rem;
-      text-align: center;
-      margin-bottom: 2rem;
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
+      /* Drop zone */
+      .drop-zone {
+        border: 2px dashed var(--border);
+        border-radius: 8px;
+        padding: 3rem 2rem;
+        text-align: center;
+        margin-bottom: 2rem;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
 
-    .drop-zone:hover,
-    .drop-zone.dragover {
-      border-color: var(--accent);
-      background: rgba(88, 166, 255, 0.05);
-    }
+      .drop-zone:hover,
+      .drop-zone.dragover {
+        border-color: var(--accent);
+        background: rgba(88, 166, 255, 0.05);
+      }
 
-    .drop-zone-icon {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-    }
+      .drop-zone-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+      }
 
-    .drop-zone p {
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-    }
+      .drop-zone p {
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+      }
 
-    .drop-zone input[type="file"] {
-      display: none;
-    }
+      .drop-zone input[type="file"] {
+        display: none;
+      }
 
-    .btn {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      background: var(--accent);
-      color: var(--bg);
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: background 0.2s;
-    }
+      .btn {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: background 0.2s;
+      }
 
-    .btn:hover {
-      background: var(--accent-hover);
-    }
+      .btn:hover {
+        background: var(--accent-hover);
+      }
 
-    /* Filters */
-    .filters {
-      display: none;
-      gap: 1rem;
-      margin-bottom: 2rem;
-      flex-wrap: wrap;
-      align-items: flex-end;
-    }
-
-    .filters.visible {
-      display: flex;
-    }
-
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    .filter-group label {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .filter-group input,
-    .filter-group select {
-      padding: 0.5rem 0.75rem;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 0.875rem;
-    }
-
-    .filter-group input:focus,
-    .filter-group select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .filter-group input[type="text"] {
-      width: 200px;
-    }
-
-    .filter-group input[type="date"] {
-      width: 150px;
-    }
-
-    .stats {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-    }
-
-    /* Entries */
-    .entries {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .entry {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .entry-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding: 1rem;
-      gap: 1rem;
-      cursor: pointer;
-    }
-
-    .entry-header:hover {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    .entry-main {
-      flex: 1;
-    }
-
-    .entry-summary {
-      font-weight: 500;
-      margin-bottom: 0.25rem;
-    }
-
-    .entry-meta {
-      display: flex;
-      gap: 1rem;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-    }
-
-    .entry-type {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      background: rgba(88, 166, 255, 0.15);
-      color: var(--accent);
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-
-    .entry-type.file_write { background: rgba(63, 185, 80, 0.15); color: var(--success); }
-    .entry-type.file_edit { background: rgba(63, 185, 80, 0.15); color: var(--success); }
-    .entry-type.browser { background: rgba(210, 153, 34, 0.15); color: var(--warning); }
-    .entry-type.api_call { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
-    .entry-type.exec { background: rgba(248, 81, 73, 0.15); color: var(--error); }
-    .entry-type.message_send { background: rgba(163, 113, 247, 0.15); color: #a371f7; }
-    .entry-type.config_change { background: rgba(210, 153, 34, 0.15); color: var(--warning); }
-
-    .entry-expand {
-      color: var(--text-muted);
-      font-size: 1.25rem;
-      transition: transform 0.2s;
-    }
-
-    .entry.expanded .entry-expand {
-      transform: rotate(180deg);
-    }
-
-    .entry-details {
-      display: none;
-      padding: 0 1rem 1rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .entry.expanded .entry-details {
-      display: block;
-    }
-
-    .section {
-      margin-top: 1rem;
-    }
-
-    .section-title {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .section-title::before {
-      content: '';
-      display: inline-block;
-      width: 3px;
-      height: 1em;
-      border-radius: 1px;
-    }
-
-    .section-did .section-title::before { background: var(--success); }
-    .section-assume .section-title::before { background: var(--warning); }
-    .section-unsure .section-title::before { background: var(--error); }
-    .section-verify .section-title::before { background: var(--accent); }
-    .section-context .section-title::before { background: #8b949e; }
-    .section-artifacts .section-title::before { background: #a371f7; }
-
-    .section ul {
-      list-style: none;
-      padding-left: 0;
-    }
-
-    .section li {
-      position: relative;
-      padding-left: 1rem;
-      font-size: 0.875rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .section li::before {
-      content: '•';
-      position: absolute;
-      left: 0;
-      color: var(--text-muted);
-    }
-
-    .artifact-link {
-      color: var(--accent);
-      text-decoration: none;
-      word-break: break-all;
-    }
-
-    .artifact-link:hover {
-      text-decoration: underline;
-    }
-
-    .context-item {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      background: var(--bg);
-      border-radius: 4px;
-      font-size: 0.75rem;
-      margin-right: 0.5rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 3rem;
-      color: var(--text-muted);
-    }
-
-    /* Responsive */
-    @media (max-width: 640px) {
+      /* Filters */
       .filters {
-        flex-direction: column;
-        align-items: stretch;
+        display: none;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
       }
 
-      .filter-group input[type="text"],
-      .filter-group input[type="date"],
-      .filter-group select {
-        width: 100%;
+      .filters.visible {
+        display: flex;
       }
 
-      .entry-meta {
+      .filter-group {
+        display: flex;
         flex-direction: column;
         gap: 0.25rem;
       }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>📒 Audit Ledger Viewer</h1>
-    <p class="subtitle">Load a JSONL ledger file to inspect agent actions</p>
 
-    <div class="drop-zone" id="dropZone">
-      <div class="drop-zone-icon">📄</div>
-      <p>Drag & drop a .jsonl file here</p>
-      <p>or</p>
-      <label class="btn">
-        Choose File
-        <input type="file" id="fileInput" accept=".jsonl,.json,.txt">
-      </label>
+      .filter-group label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .filter-group input,
+      .filter-group select {
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font-size: 0.875rem;
+      }
+
+      .filter-group input:focus,
+      .filter-group select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      .filter-group input[type="text"] {
+        width: 200px;
+      }
+
+      .filter-group input[type="date"] {
+        width: 150px;
+      }
+
+      .stats {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+      }
+
+      /* Entries */
+      .entries {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .entry {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .entry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 1rem;
+        gap: 1rem;
+        cursor: pointer;
+      }
+
+      .entry-header:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .entry-main {
+        flex: 1;
+      }
+
+      .entry-summary {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+      }
+
+      .entry-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        flex-wrap: wrap;
+      }
+
+      .entry-type {
+        display: inline-block;
+        padding: 0.125rem 0.5rem;
+        background: rgba(88, 166, 255, 0.15);
+        color: var(--accent);
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .entry-type.file_write {
+        background: rgba(63, 185, 80, 0.15);
+        color: var(--success);
+      }
+      .entry-type.file_edit {
+        background: rgba(63, 185, 80, 0.15);
+        color: var(--success);
+      }
+      .entry-type.browser {
+        background: rgba(210, 153, 34, 0.15);
+        color: var(--warning);
+      }
+      .entry-type.api_call {
+        background: rgba(88, 166, 255, 0.15);
+        color: var(--accent);
+      }
+      .entry-type.exec {
+        background: rgba(248, 81, 73, 0.15);
+        color: var(--error);
+      }
+      .entry-type.message_send {
+        background: rgba(163, 113, 247, 0.15);
+        color: #a371f7;
+      }
+      .entry-type.config_change {
+        background: rgba(210, 153, 34, 0.15);
+        color: var(--warning);
+      }
+
+      .entry-expand {
+        color: var(--text-muted);
+        font-size: 1.25rem;
+        transition: transform 0.2s;
+      }
+
+      .entry.expanded .entry-expand {
+        transform: rotate(180deg);
+      }
+
+      .entry-details {
+        display: none;
+        padding: 0 1rem 1rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .entry.expanded .entry-details {
+        display: block;
+      }
+
+      .section {
+        margin-top: 1rem;
+      }
+
+      .section-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .section-title::before {
+        content: "";
+        display: inline-block;
+        width: 3px;
+        height: 1em;
+        border-radius: 1px;
+      }
+
+      .section-did .section-title::before {
+        background: var(--success);
+      }
+      .section-assume .section-title::before {
+        background: var(--warning);
+      }
+      .section-unsure .section-title::before {
+        background: var(--error);
+      }
+      .section-verify .section-title::before {
+        background: var(--accent);
+      }
+      .section-context .section-title::before {
+        background: #8b949e;
+      }
+      .section-artifacts .section-title::before {
+        background: #a371f7;
+      }
+
+      .section ul {
+        list-style: none;
+        padding-left: 0;
+      }
+
+      .section li {
+        position: relative;
+        padding-left: 1rem;
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .section li::before {
+        content: "•";
+        position: absolute;
+        left: 0;
+        color: var(--text-muted);
+      }
+
+      .artifact-link {
+        color: var(--accent);
+        text-decoration: none;
+        word-break: break-all;
+      }
+
+      .artifact-link:hover {
+        text-decoration: underline;
+      }
+
+      .context-item {
+        display: inline-block;
+        padding: 0.125rem 0.5rem;
+        background: var(--bg);
+        border-radius: 4px;
+        font-size: 0.75rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-muted);
+      }
+
+      /* Responsive */
+      @media (max-width: 640px) {
+        .filters {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .filter-group input[type="text"],
+        .filter-group input[type="date"],
+        .filter-group select {
+          width: 100%;
+        }
+
+        .entry-meta {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📒 Audit Ledger Viewer</h1>
+      <p class="subtitle">Load a JSONL ledger file to inspect agent actions</p>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-icon">📄</div>
+        <p>Drag & drop a .jsonl file here</p>
+        <p>or</p>
+        <label class="btn">
+          Choose File
+          <input type="file" id="fileInput" accept=".jsonl,.json,.txt" />
+        </label>
+      </div>
+
+      <div class="filters" id="filters">
+        <div class="filter-group">
+          <label for="searchInput">Search summary</label>
+          <input type="text" id="searchInput" placeholder="Type to filter..." />
+        </div>
+        <div class="filter-group">
+          <label for="typeSelect">Action type</label>
+          <select id="typeSelect">
+            <option value="">All types</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="dateFrom">From</label>
+          <input type="date" id="dateFrom" />
+        </div>
+        <div class="filter-group">
+          <label for="dateTo">To</label>
+          <input type="date" id="dateTo" />
+        </div>
+        <div class="filter-group">
+          <button class="btn" id="clearFilters">Clear</button>
+        </div>
+      </div>
+
+      <div class="stats" id="stats"></div>
+      <div class="entries" id="entries"></div>
     </div>
 
-    <div class="filters" id="filters">
-      <div class="filter-group">
-        <label for="searchInput">Search summary</label>
-        <input type="text" id="searchInput" placeholder="Type to filter...">
-      </div>
-      <div class="filter-group">
-        <label for="typeSelect">Action type</label>
-        <select id="typeSelect">
-          <option value="">All types</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label for="dateFrom">From</label>
-        <input type="date" id="dateFrom">
-      </div>
-      <div class="filter-group">
-        <label for="dateTo">To</label>
-        <input type="date" id="dateTo">
-      </div>
-      <div class="filter-group">
-        <button class="btn" id="clearFilters">Clear</button>
-      </div>
-    </div>
+    <script>
+      // State
+      let allEntries = [];
+      let filteredEntries = [];
 
-    <div class="stats" id="stats"></div>
-    <div class="entries" id="entries"></div>
-  </div>
+      // Elements
+      const dropZone = document.getElementById("dropZone");
+      const fileInput = document.getElementById("fileInput");
+      const filters = document.getElementById("filters");
+      const searchInput = document.getElementById("searchInput");
+      const typeSelect = document.getElementById("typeSelect");
+      const dateFrom = document.getElementById("dateFrom");
+      const dateTo = document.getElementById("dateTo");
+      const clearFilters = document.getElementById("clearFilters");
+      const stats = document.getElementById("stats");
+      const entriesContainer = document.getElementById("entries");
 
-  <script>
-    // State
-    let allEntries = [];
-    let filteredEntries = [];
+      // File handling
+      dropZone.addEventListener("click", () => fileInput.click());
 
-    // Elements
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
-    const filters = document.getElementById('filters');
-    const searchInput = document.getElementById('searchInput');
-    const typeSelect = document.getElementById('typeSelect');
-    const dateFrom = document.getElementById('dateFrom');
-    const dateTo = document.getElementById('dateTo');
-    const clearFilters = document.getElementById('clearFilters');
-    const stats = document.getElementById('stats');
-    const entriesContainer = document.getElementById('entries');
-
-    // File handling
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('dragover');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      const file = e.dataTransfer.files[0];
-      if (file) loadFile(file);
-    });
-
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) loadFile(file);
-    });
-
-    function loadFile(file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target.result;
-        parseJSONL(content);
-      };
-      reader.readAsText(file);
-    }
-
-    function parseJSONL(content) {
-      allEntries = [];
-      const lines = content.split('\n').filter(line => line.trim());
-      
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line);
-          allEntries.push(entry);
-        } catch (err) {
-          console.warn('Skipping invalid JSON line:', line.substring(0, 50));
-        }
-      }
-
-      // Sort by timestamp descending (newest first)
-      allEntries.sort((a, b) => {
-        const tsA = a.ts || '';
-        const tsB = b.ts || '';
-        return tsB.localeCompare(tsA);
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("dragover");
       });
 
-      populateTypeFilter();
-      applyFilters();
-      filters.classList.add('visible');
-      dropZone.style.display = 'none';
-    }
-
-    function populateTypeFilter() {
-      const types = new Set();
-      for (const entry of allEntries) {
-        const type = entry.action?.type;
-        if (type) types.add(type);
-      }
-
-      typeSelect.innerHTML = '<option value="">All types</option>';
-      for (const type of [...types].sort()) {
-        const opt = document.createElement('option');
-        opt.value = type;
-        opt.textContent = type.replace(/_/g, ' ');
-        typeSelect.appendChild(opt);
-      }
-    }
-
-    // Filtering
-    function applyFilters() {
-      const search = searchInput.value.toLowerCase().trim();
-      const type = typeSelect.value;
-      const from = dateFrom.value ? new Date(dateFrom.value) : null;
-      const to = dateTo.value ? new Date(dateTo.value + 'T23:59:59') : null;
-
-      filteredEntries = allEntries.filter(entry => {
-        // Search in summary
-        if (search) {
-          const summary = (entry.action?.summary || '').toLowerCase();
-          if (!summary.includes(search)) return false;
-        }
-
-        // Type filter
-        if (type && entry.action?.type !== type) return false;
-
-        // Date range
-        if (entry.ts) {
-          const entryDate = new Date(entry.ts);
-          if (from && entryDate < from) return false;
-          if (to && entryDate > to) return false;
-        }
-
-        return true;
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("dragover");
       });
 
-      renderEntries();
-    }
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("dragover");
+        const file = e.dataTransfer.files[0];
+        if (file) loadFile(file);
+      });
 
-    searchInput.addEventListener('input', applyFilters);
-    typeSelect.addEventListener('change', applyFilters);
-    dateFrom.addEventListener('change', applyFilters);
-    dateTo.addEventListener('change', applyFilters);
+      fileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) loadFile(file);
+      });
 
-    clearFilters.addEventListener('click', () => {
-      searchInput.value = '';
-      typeSelect.value = '';
-      dateFrom.value = '';
-      dateTo.value = '';
-      applyFilters();
-    });
-
-    // Rendering
-    function renderEntries() {
-      stats.textContent = `Showing ${filteredEntries.length} of ${allEntries.length} entries`;
-
-      if (filteredEntries.length === 0) {
-        entriesContainer.innerHTML = '<div class="empty-state">No entries match the current filters</div>';
-        return;
+      function loadFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target.result;
+          parseJSONL(content);
+        };
+        reader.readAsText(file);
       }
 
-      entriesContainer.innerHTML = filteredEntries.map(entry => renderEntry(entry)).join('');
+      function parseJSONL(content) {
+        allEntries = [];
+        const lines = content.split("\n").filter((line) => line.trim());
 
-      // Add click handlers for expansion
-      document.querySelectorAll('.entry-header').forEach(header => {
-        header.addEventListener('click', () => {
-          header.closest('.entry').classList.toggle('expanded');
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line);
+            allEntries.push(entry);
+          } catch (err) {
+            console.warn("Skipping invalid JSON line:", line.substring(0, 50));
+          }
+        }
+
+        // Sort by timestamp descending (newest first)
+        allEntries.sort((a, b) => {
+          const tsA = a.ts || "";
+          const tsB = b.ts || "";
+          return tsB.localeCompare(tsA);
         });
+
+        populateTypeFilter();
+        applyFilters();
+        filters.classList.add("visible");
+        dropZone.style.display = "none";
+      }
+
+      function populateTypeFilter() {
+        const types = new Set();
+        for (const entry of allEntries) {
+          const type = entry.action?.type;
+          if (type) types.add(type);
+        }
+
+        typeSelect.innerHTML = '<option value="">All types</option>';
+        for (const type of [...types].sort()) {
+          const opt = document.createElement("option");
+          opt.value = type;
+          opt.textContent = type.replace(/_/g, " ");
+          typeSelect.appendChild(opt);
+        }
+      }
+
+      // Filtering
+      function applyFilters() {
+        const search = searchInput.value.toLowerCase().trim();
+        const type = typeSelect.value;
+        const from = dateFrom.value ? new Date(dateFrom.value) : null;
+        const to = dateTo.value ? new Date(dateTo.value + "T23:59:59") : null;
+
+        filteredEntries = allEntries.filter((entry) => {
+          // Search in summary
+          if (search) {
+            const summary = (entry.action?.summary || "").toLowerCase();
+            if (!summary.includes(search)) return false;
+          }
+
+          // Type filter
+          if (type && entry.action?.type !== type) return false;
+
+          // Date range
+          if (entry.ts) {
+            const entryDate = new Date(entry.ts);
+            if (from && entryDate < from) return false;
+            if (to && entryDate > to) return false;
+          }
+
+          return true;
+        });
+
+        renderEntries();
+      }
+
+      searchInput.addEventListener("input", applyFilters);
+      typeSelect.addEventListener("change", applyFilters);
+      dateFrom.addEventListener("change", applyFilters);
+      dateTo.addEventListener("change", applyFilters);
+
+      clearFilters.addEventListener("click", () => {
+        searchInput.value = "";
+        typeSelect.value = "";
+        dateFrom.value = "";
+        dateTo.value = "";
+        applyFilters();
       });
-    }
 
-    function renderEntry(entry) {
-      const id = entry.id || 'unknown';
-      const ts = entry.ts ? formatDate(entry.ts) : 'No timestamp';
-      const type = entry.action?.type || 'other';
-      const summary = entry.action?.summary || 'No summary';
-      
-      const whatIDid = entry.what_i_did || [];
-      const assumptions = entry.assumptions || [];
-      const uncertainties = entry.uncertainties || [];
-      const artifacts = entry.action?.artifacts || [];
-      const context = entry.context || {};
-      const verification = entry.verification || {};
+      // Rendering
+      function renderEntries() {
+        stats.textContent = `Showing ${filteredEntries.length} of ${allEntries.length} entries`;
 
-      return `
+        if (filteredEntries.length === 0) {
+          entriesContainer.innerHTML =
+            '<div class="empty-state">No entries match the current filters</div>';
+          return;
+        }
+
+        entriesContainer.innerHTML = filteredEntries
+          .map((entry) => renderEntry(entry))
+          .join("");
+
+        // Add click handlers for expansion
+        document.querySelectorAll(".entry-header").forEach((header) => {
+          header.addEventListener("click", () => {
+            header.closest(".entry").classList.toggle("expanded");
+          });
+        });
+      }
+
+      function renderEntry(entry) {
+        const id = entry.id || "unknown";
+        const ts = entry.ts ? formatDate(entry.ts) : "No timestamp";
+        const type = entry.action?.type || "other";
+        const summary = entry.action?.summary || "No summary";
+
+        const whatIDid = entry.what_i_did || [];
+        const assumptions = entry.assumptions || [];
+        const uncertainties = entry.uncertainties || [];
+        const artifacts = entry.action?.artifacts || [];
+        const context = entry.context || {};
+        const verification = entry.verification || {};
+
+        return `
         <div class="entry">
           <div class="entry-header">
             <div class="entry-main">
               <div class="entry-summary">${escapeHtml(summary)}</div>
               <div class="entry-meta">
-                <span class="entry-type ${type}">${type.replace(/_/g, ' ')}</span>
+                <span class="entry-type ${type}">${type.replace(/_/g, " ")}</span>
                 <span>${ts}</span>
                 <span>ID: ${escapeHtml(id)}</span>
               </div>
@@ -554,105 +592,118 @@
           </div>
           <div class="entry-details">
             ${renderContext(context)}
-            ${renderSection('What I Did', whatIDid, 'did')}
-            ${renderSection('Assumptions', assumptions, 'assume')}
-            ${renderSection('Uncertainties', uncertainties, 'unsure')}
+            ${renderSection("What I Did", whatIDid, "did")}
+            ${renderSection("Assumptions", assumptions, "assume")}
+            ${renderSection("Uncertainties", uncertainties, "unsure")}
             ${renderArtifacts(artifacts)}
             ${renderVerification(verification)}
           </div>
         </div>
       `;
-    }
+      }
 
-    function renderContext(context) {
-      const items = Object.entries(context);
-      if (items.length === 0) return '';
+      function renderContext(context) {
+        const items = Object.entries(context);
+        if (items.length === 0) return "";
 
-      return `
+        return `
         <div class="section section-context">
           <div class="section-title">Context</div>
           <div>
-            ${items.map(([key, val]) => `<span class="context-item"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</span>`).join('')}
+            ${items.map(([key, val]) => `<span class="context-item"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</span>`).join("")}
           </div>
         </div>
       `;
-    }
+      }
 
-    function renderSection(title, items, className) {
-      if (!items || items.length === 0) return '';
+      function renderSection(title, items, className) {
+        if (!items || items.length === 0) return "";
 
-      return `
+        return `
         <div class="section section-${className}">
           <div class="section-title">${title}</div>
           <ul>
-            ${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+            ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
           </ul>
         </div>
       `;
-    }
+      }
 
-    function renderArtifacts(artifacts) {
-      if (!artifacts || artifacts.length === 0) return '';
+      function renderArtifacts(artifacts) {
+        if (!artifacts || artifacts.length === 0) return "";
 
-      return `
+        return `
         <div class="section section-artifacts">
           <div class="section-title">Artifacts</div>
           <ul>
-            ${artifacts.map(artifact => {
-              if (artifact.startsWith('http://') || artifact.startsWith('https://')) {
-                return `<li><a href="${escapeHtml(artifact)}" class="artifact-link" target="_blank" rel="noopener">${escapeHtml(artifact)}</a></li>`;
-              }
-              return `<li>${escapeHtml(artifact)}</li>`;
-            }).join('')}
+            ${artifacts
+              .map((artifact) => {
+                if (
+                  artifact.startsWith("http://") ||
+                  artifact.startsWith("https://")
+                ) {
+                  return `<li><a href="${escapeHtml(artifact)}" class="artifact-link" target="_blank" rel="noopener">${escapeHtml(artifact)}</a></li>`;
+                }
+                return `<li>${escapeHtml(artifact)}</li>`;
+              })
+              .join("")}
           </ul>
         </div>
       `;
-    }
+      }
 
-    function renderVerification(verification) {
-      const suggested = verification.suggested || [];
-      const observed = verification.observed || [];
-      if (suggested.length === 0 && observed.length === 0) return '';
+      function renderVerification(verification) {
+        const suggested = verification.suggested || [];
+        const observed = verification.observed || [];
+        if (suggested.length === 0 && observed.length === 0) return "";
 
-      return `
+        return `
         <div class="section section-verify">
           <div class="section-title">Verification</div>
-          ${suggested.length > 0 ? `
+          ${
+            suggested.length > 0
+              ? `
             <div style="margin-bottom: 0.5rem;">
               <strong style="font-size: 0.75rem; color: var(--text-muted);">Suggested:</strong>
-              <ul>${suggested.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+              <ul>${suggested.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>
             </div>
-          ` : ''}
-          ${observed.length > 0 ? `
+          `
+              : ""
+          }
+          ${
+            observed.length > 0
+              ? `
             <div>
               <strong style="font-size: 0.75rem; color: var(--text-muted);">Observed:</strong>
-              <ul>${observed.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul>
+              <ul>${observed.map((o) => `<li>${escapeHtml(o)}</li>`).join("")}</ul>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
         </div>
       `;
-    }
-
-    function formatDate(isoString) {
-      try {
-        const date = new Date(isoString);
-        return date.toLocaleString(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      } catch {
-        return isoString;
       }
-    }
 
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-  </script>
-</body>
+      function formatDate(isoString) {
+        try {
+          const date = new Date(isoString);
+          return date.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } catch {
+          return isoString;
+        }
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    </script>
+  </body>
 </html>

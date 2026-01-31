@@ -7,6 +7,7 @@ This project uses [recur](https://github.com/ImWillieBeamin/recur) for evaluatio
 Evals run automatically on every push and pull request via GitHub Actions. See `.github/workflows/ci.yml` for the full workflow.
 
 The CI job will fail if:
+
 - Any required field is missing from generated entries
 - Any secret patterns are detected in the output
 
@@ -31,6 +32,7 @@ npm run build
 ```
 
 Or use the convenience script:
+
 ```bash
 npm run eval
 ```
@@ -58,6 +60,7 @@ Each line is a JSON test case with an `id` and `input` object. The runner transf
 ### `evals/runner.js`
 
 Deterministic runner that:
+
 - Uses a fixed timestamp (`2026-01-31T00:00:00.000Z`) for reproducibility
 - Generates stable IDs from test case IDs
 - Transforms input fields into the audit entry schema
@@ -67,7 +70,18 @@ Deterministic runner that:
 Add new cases to `evals/dataset.jsonl`:
 
 ```json
-{"id":"my-test","input":{"request":"description","action_type":"api_call","summary":"Did something","artifacts":[],"did":["step 1"],"assume":["precondition"],"unsure":["uncertainty"]}}
+{
+  "id": "my-test",
+  "input": {
+    "request": "description",
+    "action_type": "api_call",
+    "summary": "Did something",
+    "artifacts": [],
+    "did": ["step 1"],
+    "assume": ["precondition"],
+    "unsure": ["uncertainty"]
+  }
+}
 ```
 
 Run `npm run eval` to verify the new case passes all checks.

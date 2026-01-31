@@ -120,9 +120,12 @@ const SENSITIVE_VALUE_PATTERNS: readonly RegExp[] = [
  */
 export function isSensitiveKey(
   key: string,
-  extraPatterns: readonly RegExp[] = []
+  extraPatterns: readonly RegExp[] = [],
 ): boolean {
-  const allPatterns: readonly RegExp[] = [...SENSITIVE_KEY_PATTERNS, ...extraPatterns];
+  const allPatterns: readonly RegExp[] = [
+    ...SENSITIVE_KEY_PATTERNS,
+    ...extraPatterns,
+  ];
   return allPatterns.some((p) => p.test(key));
 }
 
@@ -136,10 +139,13 @@ export function isSensitiveKey(
  */
 export function findSensitivePatterns(
   value: string,
-  extraPatterns: readonly RegExp[] = []
+  extraPatterns: readonly RegExp[] = [],
 ): string[] {
   const matches: string[] = [];
-  const allPatterns: readonly RegExp[] = [...SENSITIVE_VALUE_PATTERNS, ...extraPatterns];
+  const allPatterns: readonly RegExp[] = [
+    ...SENSITIVE_VALUE_PATTERNS,
+    ...extraPatterns,
+  ];
 
   for (const pattern of allPatterns) {
     const match = value.match(pattern);
@@ -165,14 +171,19 @@ export function findSensitivePatterns(
 export function redactValue(
   value: string,
   replacement: string = DEFAULT_REPLACEMENT,
-  extraPatterns: readonly RegExp[] = []
+  extraPatterns: readonly RegExp[] = [],
 ): string {
   let result = value;
-  const allPatterns: readonly RegExp[] = [...SENSITIVE_VALUE_PATTERNS, ...extraPatterns];
+  const allPatterns: readonly RegExp[] = [
+    ...SENSITIVE_VALUE_PATTERNS,
+    ...extraPatterns,
+  ];
 
   for (const pattern of allPatterns) {
     // Create a global version of the pattern
-    const flags = pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g";
+    const flags = pattern.flags.includes("g")
+      ? pattern.flags
+      : pattern.flags + "g";
     const globalPattern = new RegExp(pattern.source, flags);
     result = result.replace(globalPattern, replacement);
   }
@@ -254,7 +265,7 @@ export function redactObject<T>(obj: T, opts: RedactOptions = {}): T {
   if (mode === "strict" && detectedSecrets.length > 0) {
     throw new RedactionError(
       `Detected ${detectedSecrets.length} potential secret(s) in data`,
-      detectedSecrets
+      detectedSecrets,
     );
   }
 
@@ -282,7 +293,7 @@ export function redactString(value: string, opts: RedactOptions = {}): string {
     if (mode === "strict") {
       throw new RedactionError(
         `Detected potential secret(s) in string`,
-        patterns
+        patterns,
       );
     }
     return redactValue(value, replacement, extraValuePatterns);
@@ -303,7 +314,7 @@ export function redactString(value: string, opts: RedactOptions = {}): string {
 export function containsSecrets<T>(
   obj: T,
   extraKeyPatterns: readonly RegExp[] = [],
-  extraValuePatterns: readonly RegExp[] = []
+  extraValuePatterns: readonly RegExp[] = [],
 ): boolean {
   try {
     redactObject(obj, {

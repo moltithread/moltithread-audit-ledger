@@ -10,7 +10,10 @@ export type ExplainFormat = "text" | "markdown";
  * @param format - Output format ("text" or "markdown")
  * @returns Formatted string representation
  */
-export function formatExplain(entry: AuditEntry, format: ExplainFormat = "text"): string {
+export function formatExplain(
+  entry: AuditEntry,
+  format: ExplainFormat = "text",
+): string {
   const lines: string[] = [];
 
   if (format === "markdown") {
@@ -94,7 +97,9 @@ function formatPlainText(entry: AuditEntry): string[] {
   const lines: string[] = [];
 
   lines.push(`${entry.action.summary}`);
-  lines.push(`ID: ${entry.id}  |  Time: ${entry.ts}  |  Type: ${entry.action.type}`);
+  lines.push(
+    `ID: ${entry.id}  |  Time: ${entry.ts}  |  Type: ${entry.action.type}`,
+  );
   lines.push("");
 
   if (entry.action.artifacts.length > 0) {
