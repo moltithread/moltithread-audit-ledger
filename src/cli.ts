@@ -342,6 +342,7 @@ ${c(BOLD, "EXAMPLES")}
 
   ${c(DIM, "# Import from clawdbot logs")}
   audit-ledger import clawdbot events.jsonl --dry-run
+  audit-ledger import claude-code events.jsonl --dry-run
 
 ${c(BOLD, "ENVIRONMENT")}
   AUDIT_LEDGER_PATH    Default ledger file path

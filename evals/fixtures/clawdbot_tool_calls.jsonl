@@ -1,0 +1,2 @@
+{"tool":"Write","arguments":{"path":"/tmp/out.txt","content":"hello"},"result":"success","timestamp":"2026-01-31T12:01:00.000Z","files":["/tmp/out.txt"],"channel":"discord","session":"agent:main:main","request":"write a file"}
+{"tool":"exec","arguments":{"command":"echo ok"},"result":"success","timestamp":"2026-01-31T12:02:00.000Z","request":"run a command"}

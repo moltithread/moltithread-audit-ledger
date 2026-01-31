@@ -1,0 +1,1 @@
+{"id":"20260131T120000Z-view","ts":"2026-01-31T12:00:00.000Z","context":{"request":"viewer"},"action":{"type":"other","summary":"Viewer compatibility entry","artifacts":["https://example.com"]},"what_i_did":["Did a thing"],"assumptions":["Viewer expects schema"],"uncertainties":["None"],"verification":{"suggested":[],"observed":[]}}
