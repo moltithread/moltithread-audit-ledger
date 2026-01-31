@@ -21,6 +21,7 @@ import {
 import { redactObject, RedactionError, type RedactMode } from "./redact.js";
 import { parseClawdbotJsonl } from "./adapters/clawdbot.js";
 import { parseClaudeCodeJsonl } from "./adapters/claude-code.js";
+import { parseSystemEventsText } from "./adapters/system-events.js";
 
 // =============================================================================
 // Terminal color helpers
@@ -655,7 +656,7 @@ async function handleImport(ledgerPath: string): Promise<void> {
   const inputArg = process.argv[4];
   const useStdin = hasFlag("--stdin");
 
-  const validFormats = ["clawdbot", "claude-code"];
+  const validFormats = ["clawdbot", "claude-code", "system-events"];
   if (!format || !validFormats.includes(format)) {
     exitWithError(
       `Unknown import format: ${format ?? "(none)"}`,
@@ -697,7 +698,11 @@ async function handleImport(ledgerPath: string): Promise<void> {
 
   // Select parser based on format
   const parser =
-    format === "claude-code" ? parseClaudeCodeJsonl : parseClawdbotJsonl;
+    format === "claude-code"
+      ? parseClaudeCodeJsonl
+      : format === "system-events"
+        ? (c: string) => parseSystemEventsText(c)
+        : parseClawdbotJsonl;
 
   let imported = 0;
   let skipped = 0;
