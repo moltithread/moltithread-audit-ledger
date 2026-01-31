@@ -67,5 +67,16 @@ if (containsSecrets(data)) { /* ... */ }
 ## Ledger entry schema
 See: `docs/SCHEMA.md`
 
+## Evals
+
+This project includes a [recur](https://github.com/ImWillieBeamin/recur) eval suite that validates audit entries have required fields and contain no secrets. Evals run in CI on every push/PR.
+
+```bash
+# Run evals locally (requires recur binary on PATH)
+npm run eval
+```
+
+See: `docs/EVALS.md` for setup and configuration.
+
 ## Roadmap
 See: `docs/ROADMAP.md`

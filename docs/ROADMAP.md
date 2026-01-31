@@ -4,7 +4,7 @@
 - [x] JSONL schema
 - [x] CLI: add/last/show/search
 - [ ] Tests
-- [ ] GitHub Actions CI (lint/test)
+- [x] GitHub Actions CI (lint/test/evals)
 
 ## v0.2
 - [x] Redaction helpers (strip tokens from artifacts/strings)
