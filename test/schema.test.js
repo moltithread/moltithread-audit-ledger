@@ -40,22 +40,12 @@ test("ACTION_TYPES contains all expected types", () => {
 
 test("isActionType returns true for valid types", () => {
   for (const type of ACTION_TYPES) {
-    assert.ok(
-      isActionType(type),
-      `Expected "${type}" to be a valid action type`,
-    );
+    assert.ok(isActionType(type), `Expected "${type}" to be a valid action type`);
   }
 });
 
 test("isActionType returns false for invalid types", () => {
-  const invalidTypes = [
-    "invalid",
-    "FILE_WRITE",
-    "write",
-    "",
-    "null",
-    "undefined",
-  ];
+  const invalidTypes = ["invalid", "FILE_WRITE", "write", "", "null", "undefined"];
 
   for (const type of invalidTypes) {
     assert.ok(!isActionType(type), `Expected "${type}" to be invalid`);

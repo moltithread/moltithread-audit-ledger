@@ -162,7 +162,7 @@ function generateWhatIDid(event: ClawdbotToolCall): string[] {
       steps.push(`Read contents of ${args.path || args.file_path}`);
       if (args.offset || args.limit) {
         steps.push(
-          `Applied offset=${args.offset ?? 0}, limit=${args.limit ?? "all"}`,
+          `Applied offset=${args.offset ?? 0}, limit=${args.limit ?? "all"}`
         );
       }
       break;
@@ -177,7 +177,7 @@ function generateWhatIDid(event: ClawdbotToolCall): string[] {
       break;
     case "exec":
       steps.push(
-        `Executed shell command: ${truncate(String(args.command || ""), 80)}`,
+        `Executed shell command: ${truncate(String(args.command || ""), 80)}`
       );
       if (args.workdir) steps.push(`Working directory: ${args.workdir}`);
       if (args.timeout) steps.push(`Timeout: ${args.timeout}s`);
@@ -226,7 +226,7 @@ export interface TransformOptions {
  */
 export function transformToolCall(
   event: ClawdbotToolCall,
-  options: TransformOptions = {},
+  options: TransformOptions = {}
 ): AuditEntry {
   const validated = ClawdbotToolCallSchema.parse(event);
   const ts = validated.timestamp || new Date().toISOString();
@@ -285,8 +285,8 @@ export function* parseClawdbotJsonl(jsonl: string): Generator<AuditEntry> {
     if (!trimmed) continue;
 
     try {
-      const event = JSON.parse(trimmed);
-      yield transformToolCall(event);
+      const event: unknown = JSON.parse(trimmed);
+      yield transformToolCall(event as ClawdbotToolCall);
     } catch (err) {
       // Skip invalid lines, or you could throw/log
       console.error(`Skipping invalid line: ${(err as Error).message}`);
