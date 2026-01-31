@@ -58,7 +58,8 @@ test("transformToolCall produces valid AuditEntry for Read", () => {
   };
   const entry = transformToolCall(event);
   AuditEntrySchema.parse(entry);
-  assert.equal(entry.action.type, "file_write");
+  assert.equal(entry.action.type, "file_read",
+    "Read tool should map to file_read, not file_write");
   assert.ok(entry.action.summary.includes("Read file"));
   assert.deepEqual(entry.action.artifacts, ["/path/to/file.ts"]);
 });
@@ -269,7 +270,7 @@ test("parseClaudeCodeJsonl parses multiple lines", () => {
 
   const entries = [...parseClaudeCodeJsonl(jsonl)];
   assert.equal(entries.length, 3);
-  assert.equal(entries[0].action.type, "file_write");
+  assert.equal(entries[0].action.type, "file_read");
   assert.equal(entries[1].action.type, "file_edit");
   assert.equal(entries[2].action.type, "exec");
 });
@@ -353,4 +354,124 @@ test("transformToolCall includes error in what_i_did on failure", () => {
   };
   const entry = transformToolCall(event);
   assert.ok(entry.what_i_did.some((s) => s.includes("Error")));
+});
+
+// -----------------------------------------------------------------------------
+// Read vs Write type distinction
+// -----------------------------------------------------------------------------
+
+test("Read and Write produce different action types", () => {
+  const readEvent = { tool_name: "Read", tool_input: { file_path: "/foo.ts" }, success: true };
+  const writeEvent = { tool_name: "Write", tool_input: { file_path: "/foo.ts", content: "x" }, success: true };
+  const readEntry = transformToolCall(readEvent);
+  const writeEntry = transformToolCall(writeEvent);
+
+  assert.equal(readEntry.action.type, "file_read");
+  assert.equal(writeEntry.action.type, "file_write");
+  assert.notEqual(readEntry.action.type, writeEntry.action.type,
+    "Read and Write must have distinct action types");
+});
+
+test("Edit produces file_edit, distinct from file_read and file_write", () => {
+  const readEvent = { tool_name: "Read", tool_input: { file_path: "/foo.ts" }, success: true };
+  const writeEvent = { tool_name: "Write", tool_input: { file_path: "/foo.ts" }, success: true };
+  const editEvent = { tool_name: "Edit", tool_input: { file_path: "/foo.ts" }, success: true };
+
+  const readEntry = transformToolCall(readEvent);
+  const writeEntry = transformToolCall(writeEvent);
+  const editEntry = transformToolCall(editEvent);
+
+  assert.equal(editEntry.action.type, "file_edit");
+  assert.notEqual(editEntry.action.type, readEntry.action.type);
+  assert.notEqual(editEntry.action.type, writeEntry.action.type);
+});
+
+// -----------------------------------------------------------------------------
+// Property-based tests
+// -----------------------------------------------------------------------------
+
+import fc from "fast-check";
+
+test("property: Read tool always produces file_read", () => {
+  fc.assert(fc.property(
+    fc.record({
+      file_path: fc.string(),
+      offset: fc.option(fc.nat(), { nil: undefined }),
+      limit: fc.option(fc.nat(), { nil: undefined })
+    }),
+    (params) => {
+      const event = { tool_name: "Read", tool_input: params, success: true };
+      const entry = transformToolCall(event);
+      return entry.action.type === "file_read";
+    }
+  ));
+});
+
+test("property: Write tool always produces file_write", () => {
+  fc.assert(fc.property(
+    fc.record({
+      file_path: fc.string(),
+      content: fc.string()
+    }),
+    (params) => {
+      const event = { tool_name: "Write", tool_input: params, success: true };
+      const entry = transformToolCall(event);
+      return entry.action.type === "file_write";
+    }
+  ));
+});
+
+test("property: Edit tool always produces file_edit", () => {
+  fc.assert(fc.property(
+    fc.record({
+      file_path: fc.string(),
+      old_string: fc.string(),
+      new_string: fc.string()
+    }),
+    (params) => {
+      const event = { tool_name: "Edit", tool_input: params, success: true };
+      const entry = transformToolCall(event);
+      return entry.action.type === "file_edit";
+    }
+  ));
+});
+
+test("property: same tool always maps to same type (deterministic)", () => {
+  const knownTools = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "WebFetch", "WebSearch", "Task"];
+  fc.assert(fc.property(
+    fc.constantFrom(...knownTools),
+    fc.dictionary(fc.string().filter(s => s.length > 0 && s.length < 50), fc.string().filter(s => s.length < 100)),
+    (toolName, params) => {
+      const event1 = { tool_name: toolName, tool_input: params, success: true };
+      const event2 = { tool_name: toolName, tool_input: params, success: true };
+      const entry1 = transformToolCall(event1);
+      const entry2 = transformToolCall(event2);
+      return entry1.action.type === entry2.action.type;
+    }
+  ));
+});
+
+test("property: unknown tools map to other", () => {
+  const knownTools = new Set(["Read", "Write", "Edit", "Bash", "Grep", "Glob", "WebFetch", "WebSearch", "Task", "NotebookEdit", "AskUserQuestion"]);
+  fc.assert(fc.property(
+    fc.string().filter(s => s.length > 0 && !knownTools.has(s)),
+    (unknownTool) => {
+      const event = { tool_name: unknownTool, tool_input: {}, success: true };
+      const entry = transformToolCall(event);
+      return entry.action.type === "other";
+    }
+  ));
+});
+
+test("property: all known tool mappings produce valid ActionType", () => {
+  const validTypes = ["file_read", "file_write", "file_edit", "browser", "api_call", "exec", "message_send", "config_change", "other"];
+  const knownTools = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "WebFetch", "WebSearch", "Task", "NotebookEdit", "AskUserQuestion"];
+  fc.assert(fc.property(
+    fc.constantFrom(...knownTools),
+    (toolName) => {
+      const event = { tool_name: toolName, tool_input: {}, success: true };
+      const entry = transformToolCall(event);
+      return validTypes.includes(entry.action.type);
+    }
+  ));
 });

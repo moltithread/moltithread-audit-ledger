@@ -20,10 +20,7 @@ import {
 } from "./schema.js";
 import { redactObject, RedactionError, type RedactMode } from "./redact.js";
 import { parseClawdbotJsonl } from "./adapters/clawdbot.js";
-import {
-  parseClaudeCodeJsonl,
-  parseClaudeCodeEvent,
-} from "./adapters/claude-code.js";
+import { parseClaudeCodeJsonl } from "./adapters/claude-code.js";
 
 // =============================================================================
 // Terminal color helpers

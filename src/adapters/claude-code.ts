@@ -33,7 +33,7 @@ export type ClaudeCodeToolCall = z.infer<typeof ClaudeCodeToolCallSchema>;
  */
 const TOOL_TYPE_MAP: Readonly<Record<string, ActionType>> = {
   // File operations
-  Read: "file_write", // Log file access
+  Read: "file_read", // File read operations
   Write: "file_write",
   Glob: "file_write",
 

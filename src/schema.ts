@@ -5,6 +5,7 @@ import { z } from "zod";
  * Exported as const tuple for type inference and runtime validation.
  */
 export const ACTION_TYPES = [
+  "file_read",
   "file_write",
   "file_edit",
   "browser",
@@ -76,6 +77,7 @@ export function isActionType(value: string): value is ActionType {
 export const TYPE_ALIASES = {
   e: "exec",
   x: "exec",
+  r: "file_read",
   w: "file_write",
   d: "file_edit",
   b: "browser",

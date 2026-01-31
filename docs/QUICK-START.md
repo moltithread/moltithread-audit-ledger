@@ -5,14 +5,17 @@ A comprehensive guide to using audit-ledger for accountability logging with AI a
 ## Installation
 
 ```bash
-# Install globally
-npm install -g audit-ledger
+# Clone and build from source
+git clone https://github.com/moltithread/moltithread-audit-ledger.git
+cd moltithread-audit-ledger
+npm install && npm run build
+npm link  # makes 'audit-ledger' command available globally
 
-# Or use via npx
-npx audit-ledger --help
+# Or use npx directly from GitHub
+npx github:moltithread/moltithread-audit-ledger --help
 
-# Or add to your project
-npm install audit-ledger
+# Or add to your project from GitHub
+npm install github:moltithread/moltithread-audit-ledger
 ```
 
 ### Environment Setup
@@ -230,7 +233,7 @@ jobs:
           node-version: '20'
 
       - name: Install tools
-        run: npm install -g audit-ledger
+        run: npm install -g github:moltithread/moltithread-audit-ledger
 
       - name: Configure Claude Code hooks
         run: |

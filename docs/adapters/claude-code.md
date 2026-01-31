@@ -57,7 +57,7 @@ Claude Code tools are mapped to audit-ledger action types as follows:
 
 | Claude Code Tool | Action Type   | Description |
 |-----------------|---------------|-------------|
-| Read            | file_write    | File access/read operations |
+| Read            | file_read     | File read operations |
 | Write           | file_write    | File creation |
 | Edit            | file_edit     | File modification |
 | NotebookEdit    | file_edit     | Jupyter notebook edits |
@@ -190,7 +190,7 @@ jobs:
           node-version: '20'
 
       - name: Install audit-ledger
-        run: npm install -g audit-ledger
+        run: npm install -g github:moltithread/moltithread-audit-ledger
 
       - name: Configure hooks
         run: |

@@ -38,7 +38,7 @@ export type ClawdbotToolCall = z.infer<typeof ClawdbotToolCallSchema>;
  */
 const TOOL_TYPE_MAP: Readonly<Record<string, ActionType>> = {
   // File operations
-  Read: "file_write", // Read is technically not a write, but we log it as file access
+  Read: "file_read", // File read operations
   Write: "file_write",
   Edit: "file_edit",
 

@@ -28,6 +28,7 @@ test("schema accepts minimal valid entry", () => {
 
 test("ACTION_TYPES contains all expected types", () => {
   const expectedTypes = [
+    "file_read",
     "file_write",
     "file_edit",
     "browser",
@@ -201,6 +202,7 @@ test("AuditEntrySchema rejects empty summary", () => {
 test("TYPE_ALIASES contains expected mappings", () => {
   assert.equal(TYPE_ALIASES.e, "exec");
   assert.equal(TYPE_ALIASES.x, "exec");
+  assert.equal(TYPE_ALIASES.r, "file_read");
   assert.equal(TYPE_ALIASES.w, "file_write");
   assert.equal(TYPE_ALIASES.d, "file_edit");
   assert.equal(TYPE_ALIASES.b, "browser");
@@ -211,7 +213,7 @@ test("TYPE_ALIASES contains expected mappings", () => {
 });
 
 test("isTypeAlias returns true for valid aliases", () => {
-  const validAliases = ["e", "x", "w", "d", "b", "a", "m", "c", "o"];
+  const validAliases = ["e", "x", "r", "w", "d", "b", "a", "m", "c", "o"];
   for (const alias of validAliases) {
     assert.ok(isTypeAlias(alias), `Expected "${alias}" to be a valid alias`);
   }
@@ -226,6 +228,7 @@ test("isTypeAlias returns false for non-aliases", () => {
 
 test("resolveTypeAlias resolves single-letter aliases", () => {
   assert.equal(resolveTypeAlias("e"), "exec");
+  assert.equal(resolveTypeAlias("r"), "file_read");
   assert.equal(resolveTypeAlias("w"), "file_write");
   assert.equal(resolveTypeAlias("d"), "file_edit");
   assert.equal(resolveTypeAlias("b"), "browser");
