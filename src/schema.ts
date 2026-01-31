@@ -7,7 +7,7 @@ export const AuditEntrySchema = z.object({
     .object({
       channel: z.string().optional(),
       session: z.string().optional(),
-      request: z.string().optional()
+      request: z.string().optional(),
     })
     .optional(),
   action: z.object({
@@ -19,10 +19,10 @@ export const AuditEntrySchema = z.object({
       "exec",
       "message_send",
       "config_change",
-      "other"
+      "other",
     ]),
     summary: z.string().min(1),
-    artifacts: z.array(z.string()).default([])
+    artifacts: z.array(z.string()).default([]),
   }),
   what_i_did: z.array(z.string()).default([]),
   assumptions: z.array(z.string()).default([]),
@@ -30,9 +30,9 @@ export const AuditEntrySchema = z.object({
   verification: z
     .object({
       suggested: z.array(z.string()).default([]),
-      observed: z.array(z.string()).default([])
+      observed: z.array(z.string()).default([]),
     })
-    .optional()
+    .optional(),
 });
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;

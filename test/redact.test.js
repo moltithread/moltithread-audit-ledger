@@ -81,7 +81,10 @@ test("findSensitivePatterns detects GitHub tokens", () => {
 
   for (const token of tokens) {
     const matches = findSensitivePatterns(token);
-    assert.ok(matches.length > 0, `Should detect GitHub token: ${token.slice(0, 10)}...`);
+    assert.ok(
+      matches.length > 0,
+      `Should detect GitHub token: ${token.slice(0, 10)}...`,
+    );
   }
 });
 
@@ -96,7 +99,10 @@ test("findSensitivePatterns detects Stripe keys", () => {
 
   for (const key of keys) {
     const matches = findSensitivePatterns(key);
-    assert.ok(matches.length > 0, `Should detect Stripe key: ${key.slice(0, 10)}...`);
+    assert.ok(
+      matches.length > 0,
+      `Should detect Stripe key: ${key.slice(0, 10)}...`,
+    );
   }
 });
 
@@ -210,7 +216,10 @@ test("redactObject redacts sensitive patterns in string values", () => {
   };
 
   const result = redactObject(obj);
-  assert.ok(!result.logs.includes("abc123xyz"), "Should redact bearer token in string");
+  assert.ok(
+    !result.logs.includes("abc123xyz"),
+    "Should redact bearer token in string",
+  );
 });
 
 test("redactObject strict mode throws on secrets", () => {
@@ -221,7 +230,7 @@ test("redactObject strict mode throws on secrets", () => {
   assert.throws(
     () => redactObject(obj, { mode: "strict" }),
     RedactionError,
-    "Should throw RedactionError in strict mode"
+    "Should throw RedactionError in strict mode",
   );
 });
 
@@ -270,7 +279,7 @@ test("redactString strict mode throws", () => {
   const testKey = ["sk", "live"].join("_") + "_" + "X".repeat(24);
   assert.throws(
     () => redactString(testKey, { mode: "strict" }),
-    RedactionError
+    RedactionError,
   );
 });
 
@@ -278,7 +287,9 @@ test("redactString strict mode throws", () => {
 
 test("containsSecrets returns true for objects with secrets", () => {
   assert.ok(containsSecrets({ password: "abc" }));
-  assert.ok(containsSecrets({ data: "ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789" }));
+  assert.ok(
+    containsSecrets({ data: "ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789" }),
+  );
 });
 
 test("containsSecrets returns false for clean objects", () => {

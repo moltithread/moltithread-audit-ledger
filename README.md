@@ -3,9 +3,11 @@
 A tiny, inspectable action ledger for AI agents.
 
 Core principle:
+
 > If an agent can’t clearly answer **what did you do, what did you assume, and what are you not sure about?** — it’s not a worker, it’s a liability.
 
 ## What this repo provides
+
 - **Append-only JSONL ledger** format (no secrets; references only)
 - **CLI** to write/view/search entries
 - **Optional adapters** (coming) for agents (Clawdbot, etc.)
@@ -35,6 +37,7 @@ node dist/cli.js search moltbook --ledger ./memory/action-ledger.jsonl
 By default, the CLI automatically redacts sensitive values before writing entries. This prevents accidental leakage of tokens, passwords, and API keys.
 
 **Detected patterns include:**
+
 - Sensitive key names: `token`, `password`, `api_key`, `secret`, `auth_token`, `ct0`, etc.
 - Inline secrets: `password=value`, `token: xyz`, etc. in string values
 - Bearer/Basic auth tokens
@@ -46,10 +49,12 @@ By default, the CLI automatically redacts sensitive values before writing entrie
 - PEM private key headers
 
 **CLI flags:**
+
 - `--strict` — Reject the entry entirely if secrets are detected (exit 1)
 - `--no-redact` — Disable automatic redaction (not recommended)
 
 **Programmatic usage:**
+
 ```javascript
 import { redactObject, redactString, containsSecrets } from "./dist/redact.js";
 
@@ -61,7 +66,9 @@ const clean = redactObject({ password: "secret123" });
 redactObject(data, { mode: "strict" }); // throws RedactionError
 
 // Check without modifying
-if (containsSecrets(data)) { /* ... */ }
+if (containsSecrets(data)) {
+  /* ... */
+}
 ```
 
 ## Web Viewer
@@ -69,12 +76,14 @@ if (containsSecrets(data)) { /* ... */ }
 A static HTML viewer is available at [`docs/viewer/index.html`](docs/viewer/index.html).
 
 **Features:**
+
 - Load JSONL files via drag-and-drop or file picker
 - Filter by date range, action type, or free-text search in summary
 - Expandable entries showing the 3-section explanation (What I Did, Assumptions, Uncertainties)
 - Works offline — no server required
 
 **Usage:**
+
 1. Open `docs/viewer/index.html` directly in a browser
 2. Drag a `.jsonl` ledger file onto the drop zone (or click to select)
 3. Use the filters to find specific entries
@@ -83,6 +92,7 @@ A static HTML viewer is available at [`docs/viewer/index.html`](docs/viewer/inde
 Or host it via GitHub Pages: `https://<user>.github.io/moltithread-audit-ledger/viewer/`
 
 ## Ledger entry schema
+
 See: `docs/SCHEMA.md`
 
 ## Evals
@@ -97,4 +107,5 @@ npm run eval
 See: `docs/EVALS.md` for setup and configuration.
 
 ## Roadmap
+
 See: `docs/ROADMAP.md`

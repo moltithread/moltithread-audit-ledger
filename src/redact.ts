@@ -9,7 +9,7 @@
 export class RedactionError extends Error {
   constructor(
     message: string,
-    public matches: string[]
+    public matches: string[],
   ) {
     super(message);
     this.name = "RedactionError";
@@ -110,7 +110,7 @@ const SENSITIVE_VALUE_PATTERNS: RegExp[] = [
  */
 export function isSensitiveKey(
   key: string,
-  extraPatterns: RegExp[] = []
+  extraPatterns: RegExp[] = [],
 ): boolean {
   const allPatterns = [...SENSITIVE_KEY_PATTERNS, ...extraPatterns];
   return allPatterns.some((p) => p.test(key));
@@ -122,7 +122,7 @@ export function isSensitiveKey(
  */
 export function findSensitivePatterns(
   value: string,
-  extraPatterns: RegExp[] = []
+  extraPatterns: RegExp[] = [],
 ): string[] {
   const matches: string[] = [];
   const allPatterns = [...SENSITIVE_VALUE_PATTERNS, ...extraPatterns];
@@ -146,7 +146,7 @@ export function findSensitivePatterns(
 export function redactValue(
   value: string,
   replacement: string = DEFAULT_REPLACEMENT,
-  extraPatterns: RegExp[] = []
+  extraPatterns: RegExp[] = [],
 ): string {
   let result = value;
   const allPatterns = [...SENSITIVE_VALUE_PATTERNS, ...extraPatterns];
@@ -164,10 +164,7 @@ export function redactValue(
  * Recursively redact sensitive values in an object.
  * Handles nested objects, arrays, and string values.
  */
-export function redactObject<T>(
-  obj: T,
-  opts: RedactOptions = {}
-): T {
+export function redactObject<T>(obj: T, opts: RedactOptions = {}): T {
   const {
     mode = "redact",
     extraKeyPatterns = [],
@@ -200,7 +197,9 @@ export function redactObject<T>(
 
     if (typeof value === "object") {
       const result: Record<string, unknown> = {};
-      for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      for (const [key, val] of Object.entries(
+        value as Record<string, unknown>,
+      )) {
         const currentPath = keyPath ? `${keyPath}.${key}` : key;
 
         // Check if the key itself indicates sensitive data
@@ -230,7 +229,7 @@ export function redactObject<T>(
   if (mode === "strict" && detectedSecrets.length > 0) {
     throw new RedactionError(
       `Detected ${detectedSecrets.length} potential secret(s) in data`,
-      detectedSecrets
+      detectedSecrets,
     );
   }
 
@@ -240,10 +239,7 @@ export function redactObject<T>(
 /**
  * Redact a single string value (convenience wrapper).
  */
-export function redactString(
-  value: string,
-  opts: RedactOptions = {}
-): string {
+export function redactString(value: string, opts: RedactOptions = {}): string {
   const {
     mode = "redact",
     extraValuePatterns = [],
@@ -256,7 +252,7 @@ export function redactString(
     if (mode === "strict") {
       throw new RedactionError(
         `Detected potential secret(s) in string`,
-        patterns
+        patterns,
       );
     }
     return redactValue(value, replacement, extraValuePatterns);
@@ -272,7 +268,7 @@ export function redactString(
 export function containsSecrets<T>(
   obj: T,
   extraKeyPatterns: RegExp[] = [],
-  extraValuePatterns: RegExp[] = []
+  extraValuePatterns: RegExp[] = [],
 ): boolean {
   try {
     redactObject(obj, {

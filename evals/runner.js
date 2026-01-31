@@ -1,60 +1,88 @@
 #!/usr/bin/env node
 
-// Recur runner: reads one JSON test case on stdin and outputs one JSON object to stdout.
-// Output is an AuditEntry-like object used by recur checks.
+/**
+ * Recur Runner
+ *
+ * Reads one JSON test case from stdin and outputs an AuditEntry-like
+ * object to stdout for recur evaluation checks.
+ */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync } from "node:fs";
+
+// ==================== Constants ====================
+
+const EVAL_TIMESTAMP = "2026-01-31T00:00:00.000Z"; // Deterministic for stable evals
+
+// ==================== Helpers ====================
 
 function readStdin() {
-  return readFileSync(0, 'utf8');
+  return readFileSync(0, "utf8");
 }
 
-function isoNowForTest() {
-  // deterministic timestamp to keep evals stable
-  return '2026-01-31T00:00:00.000Z';
-}
-
-function makeId(prefix) {
+function makeEvalId(prefix) {
   return `eval-${prefix}`;
 }
 
-const raw = readStdin().trim();
-let tc;
-try {
-  tc = JSON.parse(raw);
-} catch {
-  console.log(JSON.stringify({
-    id: makeId('invalid-json'),
-    ts: isoNowForTest(),
-    action: { type: 'other', summary: 'invalid input json', artifacts: [] },
+function createErrorEntry(error) {
+  return {
+    id: makeEvalId("invalid-json"),
+    ts: EVAL_TIMESTAMP,
+    action: {
+      type: "other",
+      summary: "invalid input json",
+      artifacts: [],
+    },
     what_i_did: [],
     assumptions: [],
     uncertainties: [],
-    error: 'invalid_json'
-  }));
-  process.exit(0);
+    error,
+  };
 }
 
-const input = tc.input || {};
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
 
-const out = {
-  id: makeId(tc.id || 'case'),
-  ts: isoNowForTest(),
-  context: {
-    request: input.request || tc.id || 'unknown'
-  },
-  action: {
-    type: input.action_type || 'other',
-    summary: input.summary || 'no summary',
-    artifacts: Array.isArray(input.artifacts) ? input.artifacts : []
-  },
-  what_i_did: Array.isArray(input.did) ? input.did : [],
-  assumptions: Array.isArray(input.assume) ? input.assume : [],
-  uncertainties: Array.isArray(input.unsure) ? input.unsure : [],
-  verification: {
-    suggested: [],
-    observed: []
+// ==================== Main ====================
+
+function main() {
+  const raw = readStdin().trim();
+
+  // Parse test case JSON
+  let testCase;
+  try {
+    testCase = JSON.parse(raw);
+  } catch {
+    console.log(JSON.stringify(createErrorEntry("invalid_json")));
+    process.exit(0);
   }
-};
 
-console.log(JSON.stringify(out));
+  // Extract input fields with defaults
+  const input = testCase.input || {};
+  const caseId = testCase.id || "case";
+
+  // Build output entry
+  const output = {
+    id: makeEvalId(caseId),
+    ts: EVAL_TIMESTAMP,
+    context: {
+      request: input.request || caseId,
+    },
+    action: {
+      type: input.action_type || "other",
+      summary: input.summary || "no summary",
+      artifacts: ensureArray(input.artifacts),
+    },
+    what_i_did: ensureArray(input.did),
+    assumptions: ensureArray(input.assume),
+    uncertainties: ensureArray(input.unsure),
+    verification: {
+      suggested: [],
+      observed: [],
+    },
+  };
+
+  console.log(JSON.stringify(output));
+}
+
+main();
