@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "moltithread-audit-ledger eval runner output",
+  "type": "object",
+  "required": ["case_id", "ok", "exit_code"],
+  "additionalProperties": true,
+  "properties": {
+    "case_id": { "type": "string", "minLength": 1 },
+    "ok": { "type": "boolean" },
+    "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "level": { "type": "string", "enum": ["L1", "L2", "L3"] },
+    "test_type": { "type": "string", "minLength": 1 },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "violations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "meta": { "type": "object", "additionalProperties": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "ok": { "const": false } }, "required": ["ok"] },
+      "then": { "required": ["violations"], "properties": { "violations": { "minItems": 1 } } }
+    }
+  ]
+}
