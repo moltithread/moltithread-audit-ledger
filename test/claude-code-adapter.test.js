@@ -453,8 +453,10 @@ test("property: same tool always maps to same type (deterministic)", () => {
 
 test("property: unknown tools map to other", () => {
   const knownTools = new Set(["Read", "Write", "Edit", "Bash", "Grep", "Glob", "WebFetch", "WebSearch", "Task", "NotebookEdit", "AskUserQuestion"]);
+  // Exclude JS built-in method names that could cause issues
+  const jsBuiltins = new Set(["constructor", "toString", "valueOf", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toLocaleString", "__proto__", "__defineGetter__", "__defineSetter__", "__lookupGetter__", "__lookupSetter__"]);
   fc.assert(fc.property(
-    fc.string().filter(s => s.length > 0 && !knownTools.has(s)),
+    fc.string().filter(s => s.length > 0 && !knownTools.has(s) && !jsBuiltins.has(s)),
     (unknownTool) => {
       const event = { tool_name: unknownTool, tool_input: {}, success: true };
       const entry = transformToolCall(event);

@@ -81,9 +81,9 @@ Guided entry creation with preview before save.
 $ audit-ledger add -i
 
 Add new audit entry
-Aliases: e=exec, w=file_write, d=file_edit, b=browser, a=api_call, m=message_send, c=config_change, o=other
+Aliases: e=exec, r=file_read, w=file_write, d=file_edit, b=browser, a=api_call, m=message_send, c=config_change, o=other
 
-Type (e=exec, w=file_write, d=file_edit, ...): e
+Type (e=exec, r=file_read, w=file_write, d=file_edit, ...): e
 Summary: Deployed v2.1 to production
 Artifacts (comma-sep, optional): app.js, config.json
 What I did (line per item, blank to finish):
@@ -164,6 +164,7 @@ Single-letter shortcuts for action types.
 | Alias | Type |
 |-------|------|
 | `e`, `x` | exec |
+| `r` | file_read |
 | `w` | file_write |
 | `d` | file_edit |
 | `b` | browser |
