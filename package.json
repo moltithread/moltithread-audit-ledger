@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "node --test",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "eval": "recur eval --config evals/recur.yaml || (echo 'Recur not found. See docs/EVALS.md for setup.' && exit 1)"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
