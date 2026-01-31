@@ -64,6 +64,24 @@ redactObject(data, { mode: "strict" }); // throws RedactionError
 if (containsSecrets(data)) { /* ... */ }
 ```
 
+## Web Viewer
+
+A static HTML viewer is available at [`docs/viewer/index.html`](docs/viewer/index.html).
+
+**Features:**
+- Load JSONL files via drag-and-drop or file picker
+- Filter by date range, action type, or free-text search in summary
+- Expandable entries showing the 3-section explanation (What I Did, Assumptions, Uncertainties)
+- Works offline — no server required
+
+**Usage:**
+1. Open `docs/viewer/index.html` directly in a browser
+2. Drag a `.jsonl` ledger file onto the drop zone (or click to select)
+3. Use the filters to find specific entries
+4. Click an entry to expand and see full details
+
+Or host it via GitHub Pages: `https://<user>.github.io/moltithread-audit-ledger/viewer/`
+
 ## Ledger entry schema
 See: `docs/SCHEMA.md`
 
