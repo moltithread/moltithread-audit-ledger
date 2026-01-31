@@ -1,60 +1,15 @@
 #!/usr/bin/env node
 
-import { appendEntry, makeId, readEntries } from "./ledger.js";
-import { formatExplain, type ExplainFormat } from "./explain.js";
-import { AuditEntrySchema, type AuditEntry } from "./schema.js";
-import { redactObject, RedactionError, type RedactMode } from "./redact.js";
+import fs from "node:fs";
 import readline from "node:readline";
+import { appendEntry, makeId, readEntries, type LedgerOptions } from "./ledger.js";
+import { formatExplain, type ExplainFormat } from "./explain.js";
+import { AuditEntrySchema, ACTION_TYPES, isActionType, type AuditEntry, type ActionType } from "./schema.js";
+import { redactObject, RedactionError, type RedactMode } from "./redact.js";
+import { parseClawdbotJsonl } from "./adapters/clawdbot.js";
 
 // =============================================================================
-// Argument parsing helpers
-// =============================================================================
-
-function getArg(flag: string): string | undefined {
-  const i = process.argv.indexOf(flag);
-  if (i === -1) return undefined;
-  const value = process.argv[i + 1];
-  if (!value || value.startsWith("-")) {
-    error(`Flag ${flag} requires a value`);
-  }
-  return value;
-}
-
-function getArgs(flag: string): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < process.argv.length; i++) {
-    if (process.argv[i] === flag) {
-      const value = process.argv[i + 1];
-      if (value && !value.startsWith("-")) {
-        out.push(value);
-      } else {
-        error(`Flag ${flag} requires a value`);
-      }
-    }
-  }
-  return out;
-}
-
-function hasFlag(flag: string): boolean {
-  return process.argv.includes(flag);
-}
-
-/**
- * Get positional arguments (non-flag values) after a command.
- * Stops collecting when it hits a flag (starts with -).
- */
-function getPositionalArgs(startIndex: number): string[] {
-  const args: string[] = [];
-  for (let i = startIndex; i < process.argv.length; i++) {
-    const arg = process.argv[i];
-    if (arg.startsWith("-")) break;
-    args.push(arg);
-  }
-  return args;
-}
-
-// =============================================================================
-// Output helpers
+// Terminal color helpers
 // =============================================================================
 
 const BOLD = "\x1b[1m";
@@ -65,9 +20,72 @@ const CYAN = "\x1b[36m";
 const RESET = "\x1b[0m";
 
 const isatty = process.stderr.isTTY;
-const c = (code: string, text: string) => (isatty ? code + text + RESET : text);
+const c = (code: string, text: string): string => (isatty ? code + text + RESET : text);
 
-function error(message: string, hint?: string): never {
+// =============================================================================
+// Argument parsing helpers (improved type safety)
+// =============================================================================
+
+/**
+ * Get the value following a flag in argv.
+ * Returns undefined if flag is not present.
+ * @throws If flag is present but no value follows
+ */
+function getArg(flag: string): string | undefined {
+  const i = process.argv.indexOf(flag);
+  if (i === -1) return undefined;
+  const value = process.argv[i + 1];
+  if (!value || value.startsWith("-")) {
+    exitWithError(`Flag ${flag} requires a value`);
+  }
+  return value;
+}
+
+/**
+ * Collect all values following repeated flags (e.g., --artifact x --artifact y).
+ * Returns empty array if flag is not present.
+ */
+function getArgs(flag: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < process.argv.length; i++) {
+    if (process.argv[i] === flag) {
+      const value = process.argv[i + 1];
+      if (value && !value.startsWith("-")) {
+        out.push(value);
+      } else {
+        exitWithError(`Flag ${flag} requires a value`);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Check if a boolean flag is present in argv.
+ */
+function hasFlag(flag: string): boolean {
+  return process.argv.includes(flag);
+}
+
+/**
+ * Get positional arguments (non-flag values) after a given start index.
+ * Stops collecting when it hits a flag (starts with -).
+ */
+function getPositionalArgs(startIndex: number): string[] {
+  const args: string[] = [];
+  for (let i = startIndex; i < process.argv.length; i++) {
+    const arg = process.argv[i];
+    if (arg?.startsWith("-")) break;
+    if (arg) args.push(arg);
+  }
+  return args;
+}
+
+// =============================================================================
+// Output helpers
+// =============================================================================
+
+function exitWithError(message: string, hint?: string): never {
   console.error(`${c(RED, "error:")} ${message}`);
   if (hint) {
     console.error(`${c(DIM, "hint:")} ${hint}`);
@@ -90,7 +108,7 @@ async function readStdin(): Promise<string> {
       input: process.stdin,
       terminal: false,
     });
-    rl.on("line", (line) => {
+    rl.on("line", (line: string) => {
       data += line + "\n";
     });
     rl.on("close", () => {
@@ -107,10 +125,96 @@ function parseBullets(text: string): string[] {
 }
 
 // =============================================================================
+// Validation helpers
+// =============================================================================
+
+/** Validate and return action type, or exit with error */
+function parseActionType(typeArg: string): ActionType {
+  if (!isActionType(typeArg)) {
+    exitWithError(
+      `Invalid type: "${typeArg}"`,
+      `Valid types: ${ACTION_TYPES.join(", ")}`
+    );
+  }
+  return typeArg;
+}
+
+/** Determine redaction mode from CLI flags */
+interface RedactionConfig {
+  enabled: boolean;
+  mode: RedactMode;
+}
+
+function getRedactionConfig(): RedactionConfig {
+  const noRedact = hasFlag("--no-redact");
+  const strictMode = hasFlag("--strict");
+  return {
+    enabled: !noRedact,
+    mode: strictMode ? "strict" : "redact",
+  };
+}
+
+/** Apply redaction to an entry, handling errors with nice output */
+function applyRedaction(entry: AuditEntry, config: RedactionConfig): AuditEntry {
+  if (!config.enabled) return entry;
+
+  try {
+    return redactObject(entry, { mode: config.mode });
+  } catch (e) {
+    if (e instanceof RedactionError) {
+      console.error(`${c(RED, "error:")} Entry contains potential secrets:`);
+      for (const match of e.matches) {
+        console.error(`  ${c(DIM, "•")} ${match}`);
+      }
+      console.error("");
+      console.error(`${c(DIM, "hint:")} Use --no-redact to bypass (not recommended)`);
+      process.exit(1);
+    }
+    throw e;
+  }
+}
+
+// =============================================================================
+// Ledger operations
+// =============================================================================
+
+function resolveLedgerPath(): string {
+  // CLI flag takes precedence
+  const flagPath = getArg("--ledger");
+  if (flagPath) return flagPath;
+
+  // Then environment variable
+  const envPath = process.env.AUDIT_LEDGER_PATH;
+  if (envPath) return envPath;
+
+  // Default
+  return "./memory/action-ledger.jsonl";
+}
+
+async function loadAllEntries(ledgerPath: string): Promise<AuditEntry[]> {
+  const entries: AuditEntry[] = [];
+  try {
+    for await (const e of readEntries({ ledgerPath })) {
+      entries.push(e);
+    }
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw e;
+  }
+  return entries;
+}
+
+function formatEntryLine(entry: AuditEntry): string {
+  return `${c(CYAN, entry.id)}  ${c(DIM, entry.ts)}  ${entry.action.type}  ${entry.action.summary}`;
+}
+
+// =============================================================================
 // Help text
 // =============================================================================
 
-function usage(): void {
+function printUsage(): void {
   console.log(`${c(BOLD, "audit-ledger")} - Append-only action ledger for AI agents
 
 ${c(BOLD, "USAGE")}
@@ -122,6 +226,7 @@ ${c(BOLD, "COMMANDS")}
   ${c(CYAN, "show")}      Display a single entry by ID (JSON output)
   ${c(CYAN, "explain")}   Human-readable explanation of an entry
   ${c(CYAN, "search")}    Search entries by keyword
+  ${c(CYAN, "import")}    Import entries from external formats
   ${c(CYAN, "help")}      Show this help message
 
 ${c(BOLD, "GLOBAL OPTIONS")}
@@ -138,19 +243,15 @@ ${c(BOLD, "ADD OPTIONS")}
   --suggest <text>    Suggested verification steps (repeatable)
   --observed <text>   Observed results (repeatable)
   --json              Read full entry from stdin as JSON
-  --stdin             Read bullet items from stdin (see examples)
+  --stdin <field>     Read bullet items for a field from stdin
   --strict            Reject entry if secrets are detected
   --no-redact         Disable automatic secret redaction ${c(DIM, "(not recommended)")}
 
 ${c(BOLD, "ACTION TYPES")}
-  file_write    Created a new file
-  file_edit     Modified an existing file
-  browser       Browser interaction
-  api_call      External API request
-  exec          Shell command execution
-  message_send  Sent a message (email, chat, etc.)
-  config_change Changed configuration
-  other         Anything else
+  ${ACTION_TYPES.join("  ")}
+
+${c(BOLD, "IMPORT FORMATS")}
+  clawdbot    Clawdbot tool-call events (JSONL with tool, arguments, result, timestamp)
 
 ${c(BOLD, "EXAMPLES")}
   ${c(DIM, "# Basic add")}
@@ -168,10 +269,6 @@ ${c(BOLD, "EXAMPLES")}
   echo -e "Compiled TypeScript\\nRan unit tests" | audit-ledger add \\
     --type exec --summary "Build and test" --stdin did
 
-  ${c(DIM, "# Use environment variable for ledger path")}
-  export AUDIT_LEDGER_PATH=./logs/audit.jsonl
-  audit-ledger last 5
-
   ${c(DIM, "# View recent entries")}
   audit-ledger last 10
 
@@ -181,76 +278,44 @@ ${c(BOLD, "EXAMPLES")}
   ${c(DIM, "# Search for entries")}
   audit-ledger search "deploy"
 
+  ${c(DIM, "# Import from clawdbot logs")}
+  audit-ledger import clawdbot events.jsonl --dry-run
+
 ${c(BOLD, "ENVIRONMENT")}
   AUDIT_LEDGER_PATH   Default ledger file path
 `);
 }
 
 // =============================================================================
-// Ledger path resolution
+// Command handlers
 // =============================================================================
 
-function resolveLedgerPath(): string {
-  // CLI flag takes precedence
-  const flagPath = getArg("--ledger");
-  if (flagPath) return flagPath;
-
-  // Then environment variable
-  const envPath = process.env.AUDIT_LEDGER_PATH;
-  if (envPath) return envPath;
-
-  // Default
-  return "./memory/action-ledger.jsonl";
-}
-
-// =============================================================================
-// Commands
-// =============================================================================
-
-const cmd = process.argv[2];
-const ledgerPath = resolveLedgerPath();
-
-if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") {
-  usage();
-  process.exit(0);
-}
-
-if (cmd === "--version" || cmd === "-v") {
-  console.log("0.1.0");
-  process.exit(0);
-}
-
-// -----------------------------------------------------------------------------
-// add command
-// -----------------------------------------------------------------------------
-
-if (cmd === "add") {
+async function handleAdd(ledgerPath: string): Promise<void> {
   const jsonMode = hasFlag("--json");
   const stdinField = getArg("--stdin");
-  const strictMode = hasFlag("--strict");
-  const noRedact = hasFlag("--no-redact");
+  const redactionConfig = getRedactionConfig();
 
   let entry: AuditEntry;
 
   if (jsonMode) {
     // Read full entry from stdin as JSON
     if (process.stdin.isTTY) {
-      error(
+      exitWithError(
         "--json requires input from stdin",
-        "echo '{...}' | audit-ledger add --json",
+        "echo '{...}' | audit-ledger add --json"
       );
     }
 
     const input = await readStdin();
     if (!input) {
-      error("No JSON input received on stdin");
+      exitWithError("No JSON input received on stdin");
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(input);
-    } catch (e) {
-      error("Invalid JSON input", "Ensure valid JSON is piped to stdin");
+    } catch {
+      exitWithError("Invalid JSON input", "Ensure valid JSON is piped to stdin");
     }
 
     // Allow shorthand: just action fields, we'll add id/ts
@@ -278,43 +343,28 @@ if (cmd === "add") {
     try {
       entry = AuditEntrySchema.parse(data);
     } catch (e) {
-      if (e instanceof Error) {
-        error("Invalid entry schema", e.message);
-      }
-      throw e;
+      exitWithError("Invalid entry schema", e instanceof Error ? e.message : String(e));
     }
   } else {
     // Regular flag-based input
-    const type = getArg("--type");
+    const typeArg = getArg("--type");
     const summary = getArg("--summary");
 
-    if (!type) {
-      error(
+    if (!typeArg) {
+      exitWithError(
         "Missing required flag: --type",
-        "Specify action type: --type file_edit",
+        `Valid types: ${ACTION_TYPES.join(", ")}`
       );
-    }
-
-    const validTypes = [
-      "file_write",
-      "file_edit",
-      "browser",
-      "api_call",
-      "exec",
-      "message_send",
-      "config_change",
-      "other",
-    ];
-    if (!validTypes.includes(type)) {
-      error(`Invalid type: "${type}"`, `Valid types: ${validTypes.join(", ")}`);
     }
 
     if (!summary) {
-      error(
+      exitWithError(
         "Missing required flag: --summary",
-        'Provide a brief description: --summary "Updated config"',
+        'Provide a brief description: --summary "Updated config"'
       );
     }
+
+    const actionType = parseActionType(typeArg);
 
     // Collect arrays
     let whatIDid = getArgs("--did");
@@ -327,30 +377,25 @@ if (cmd === "add") {
     // Handle stdin for bullet fields
     if (stdinField) {
       if (process.stdin.isTTY) {
-        error(
+        exitWithError(
           "--stdin requires piped input",
-          'echo "line1\\nline2" | audit-ledger add --stdin did ...',
+          'echo "line1\\nline2" | audit-ledger add --stdin did ...'
         );
       }
 
-      const validFields = [
-        "did",
-        "assume",
-        "unsure",
-        "suggest",
-        "observed",
-        "artifact",
-      ];
-      if (!validFields.includes(stdinField)) {
-        error(
+      const validFields = ["did", "assume", "unsure", "suggest", "observed", "artifact"] as const;
+      type StdinField = (typeof validFields)[number];
+
+      if (!validFields.includes(stdinField as StdinField)) {
+        exitWithError(
           `Invalid --stdin field: "${stdinField}"`,
-          `Valid fields: ${validFields.join(", ")}`,
+          `Valid fields: ${validFields.join(", ")}`
         );
       }
 
       const bullets = parseBullets(await readStdin());
 
-      switch (stdinField) {
+      switch (stdinField as StdinField) {
         case "did":
           whatIDid = [...whatIDid, ...bullets];
           break;
@@ -376,7 +421,7 @@ if (cmd === "add") {
       id: makeId(),
       ts: new Date().toISOString(),
       action: {
-        type: type as AuditEntry["action"]["type"],
+        type: actionType,
         summary,
         artifacts,
       },
@@ -392,165 +437,97 @@ if (cmd === "add") {
     try {
       entry = AuditEntrySchema.parse(entry);
     } catch (e) {
-      if (e instanceof Error) {
-        error("Invalid entry", e.message);
-      }
-      throw e;
+      exitWithError("Invalid entry", e instanceof Error ? e.message : String(e));
     }
   }
 
-  // Apply redaction unless explicitly disabled
-  if (!noRedact) {
-    const mode: RedactMode = strictMode ? "strict" : "redact";
-    try {
-      entry = redactObject(entry, { mode });
-    } catch (e) {
-      if (e instanceof RedactionError) {
-        console.error(`${c(RED, "error:")} Entry contains potential secrets:`);
-        for (const match of e.matches) {
-          console.error(`  ${c(DIM, "•")} ${match}`);
-        }
-        console.error("");
-        console.error(
-          `${c(DIM, "hint:")} Use --no-redact to bypass (not recommended)`,
-        );
-        process.exit(1);
-      }
-      throw e;
-    }
-  }
-
-  appendEntry({ ledgerPath }, entry);
-  console.log(entry.id);
-  process.exit(0);
+  const finalEntry = applyRedaction(entry, redactionConfig);
+  appendEntry({ ledgerPath }, finalEntry);
+  console.log(finalEntry.id);
 }
 
-// -----------------------------------------------------------------------------
-// Helper to load all entries
-// -----------------------------------------------------------------------------
-
-async function loadAll(): Promise<AuditEntry[]> {
-  const entries: AuditEntry[] = [];
-  try {
-    for await (const e of readEntries({ ledgerPath })) entries.push(e);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-      // Ledger file doesn't exist yet
-      return [];
-    }
-    throw e;
-  }
-  return entries;
-}
-
-// -----------------------------------------------------------------------------
-// last command
-// -----------------------------------------------------------------------------
-
-if (cmd === "last") {
+async function handleLast(ledgerPath: string): Promise<void> {
   const positional = getPositionalArgs(3);
   const nArg = positional[0];
   const n = nArg ? Number(nArg) : 10;
 
   if (nArg && (isNaN(n) || n < 1)) {
-    error(`Invalid count: "${nArg}"`, "Provide a positive number");
+    exitWithError(`Invalid count: "${nArg}"`, "Provide a positive number");
   }
 
-  const entries = await loadAll();
+  const entries = await loadAllEntries(ledgerPath);
 
   if (entries.length === 0) {
     warn("Ledger is empty");
-    process.exit(0);
+    return;
   }
 
   const slice = entries.slice(-n);
-  for (const e of slice) {
-    console.log(
-      `${c(CYAN, e.id)}  ${c(DIM, e.ts)}  ${e.action.type}  ${e.action.summary}`,
-    );
+  for (const entry of slice) {
+    console.log(formatEntryLine(entry));
   }
-  process.exit(0);
 }
 
-// -----------------------------------------------------------------------------
-// show command
-// -----------------------------------------------------------------------------
-
-if (cmd === "show") {
+async function handleShow(ledgerPath: string): Promise<void> {
   const id = process.argv[3];
-  if (!id) {
-    error("Missing entry ID", "Usage: audit-ledger show <id>");
+  if (!id || id.startsWith("-")) {
+    exitWithError("Missing entry ID", "Usage: audit-ledger show <id>");
   }
 
-  const entries = await loadAll();
+  const entries = await loadAllEntries(ledgerPath);
   const entry = entries.find((x) => x.id === id);
 
   if (!entry) {
-    error(
-      `Entry not found: "${id}"`,
-      "Use 'audit-ledger last' to see recent IDs",
-    );
+    exitWithError(`Entry not found: "${id}"`, "Use 'audit-ledger last' to see recent IDs");
   }
 
   console.log(JSON.stringify(entry, null, 2));
-  process.exit(0);
 }
 
-// -----------------------------------------------------------------------------
-// search command
-// -----------------------------------------------------------------------------
-
-if (cmd === "search") {
+async function handleSearch(ledgerPath: string): Promise<void> {
   const termParts = getPositionalArgs(3);
   const term = termParts.join(" ");
   if (!term) {
-    error("Missing search term", "Usage: audit-ledger search <term>");
+    exitWithError("Missing search term", "Usage: audit-ledger search <term>");
   }
 
-  const entries = await loadAll();
+  const entries = await loadAllEntries(ledgerPath);
 
   if (entries.length === 0) {
     warn("Ledger is empty");
-    process.exit(0);
+    return;
   }
 
-  const low = term.toLowerCase();
+  const searchLower = term.toLowerCase();
   const hits = entries.filter((e) =>
-    JSON.stringify(e).toLowerCase().includes(low),
+    JSON.stringify(e).toLowerCase().includes(searchLower)
   );
 
   if (hits.length === 0) {
     console.error(`${c(DIM, "No matches for:")} ${term}`);
-    process.exit(0);
+    return;
   }
 
-  for (const e of hits) {
-    console.log(
-      `${c(CYAN, e.id)}  ${c(DIM, e.ts)}  ${e.action.type}  ${e.action.summary}`,
-    );
+  for (const entry of hits) {
+    console.log(formatEntryLine(entry));
   }
-  process.exit(0);
 }
 
-// -----------------------------------------------------------------------------
-// explain command
-// -----------------------------------------------------------------------------
-
-if (cmd === "explain") {
+async function handleExplain(ledgerPath: string): Promise<void> {
   const positional = getPositionalArgs(3);
   const arg = positional[0];
   if (!arg) {
-    error(
+    exitWithError(
       "Missing entry reference",
-      "Usage: audit-ledger explain <id>  or  audit-ledger explain last [<n>]",
+      "Usage: audit-ledger explain <id>  or  audit-ledger explain last [<n>]"
     );
   }
 
   const format: ExplainFormat = hasFlag("--md") ? "markdown" : "text";
-  const entries = await loadAll();
+  const entries = await loadAllEntries(ledgerPath);
 
   if (entries.length === 0) {
-    error("Ledger is empty", "Add entries with 'audit-ledger add'");
+    exitWithError("Ledger is empty", "Add entries with 'audit-ledger add'");
   }
 
   let entry: AuditEntry | undefined;
@@ -560,13 +537,13 @@ if (cmd === "explain") {
     const n = nArg ? Number(nArg) : 1;
 
     if (nArg && (isNaN(n) || n < 1)) {
-      error(`Invalid offset: "${nArg}"`, "Provide a positive number");
+      exitWithError(`Invalid offset: "${nArg}"`, "Provide a positive number");
     }
 
     if (n > entries.length) {
-      error(
+      exitWithError(
         `Offset ${n} exceeds ledger size (${entries.length} entries)`,
-        `Use a value between 1 and ${entries.length}`,
+        `Use a value between 1 and ${entries.length}`
       );
     }
 
@@ -576,21 +553,121 @@ if (cmd === "explain") {
   }
 
   if (!entry) {
-    error(
-      `Entry not found: "${arg}"`,
-      "Use 'audit-ledger last' to see recent IDs",
-    );
+    exitWithError(`Entry not found: "${arg}"`, "Use 'audit-ledger last' to see recent IDs");
   }
 
   console.log(formatExplain(entry, format));
-  process.exit(0);
 }
 
-// -----------------------------------------------------------------------------
-// Unknown command
-// -----------------------------------------------------------------------------
+async function handleImport(ledgerPath: string): Promise<void> {
+  const format = process.argv[3];
+  const inputFile = process.argv[4];
 
-error(
-  `Unknown command: "${cmd}"`,
-  "Run 'audit-ledger help' for available commands",
-);
+  if (format !== "clawdbot") {
+    exitWithError(
+      `Unknown import format: ${format ?? "(none)"}`,
+      "Supported formats: clawdbot"
+    );
+  }
+
+  if (!inputFile) {
+    exitWithError(
+      "Missing input file",
+      "Usage: audit-ledger import clawdbot <file.jsonl> [--dry-run]"
+    );
+  }
+
+  if (!fs.existsSync(inputFile)) {
+    exitWithError(`File not found: ${inputFile}`);
+  }
+
+  const dryRun = hasFlag("--dry-run");
+  const redactionConfig = getRedactionConfig();
+
+  const content = fs.readFileSync(inputFile, "utf8");
+  let imported = 0;
+  let skipped = 0;
+
+  for (const entry of parseClawdbotJsonl(content)) {
+    try {
+      let finalEntry = entry;
+
+      if (redactionConfig.enabled) {
+        try {
+          finalEntry = redactObject(entry, { mode: redactionConfig.mode });
+        } catch (e) {
+          if (e instanceof RedactionError) {
+            console.error(`Skipping entry (secrets detected): ${entry.id}`);
+            for (const match of e.matches) {
+              console.error(`  ${c(DIM, "•")} ${match}`);
+            }
+            skipped++;
+            continue;
+          }
+          throw e;
+        }
+      }
+
+      if (dryRun) {
+        console.log(`${c(DIM, "[dry-run]")} ${formatEntryLine(finalEntry)}`);
+      } else {
+        appendEntry({ ledgerPath }, finalEntry);
+        console.log(formatEntryLine(finalEntry));
+      }
+      imported++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`${c(YELLOW, "warn:")} Error processing entry: ${message}`);
+      skipped++;
+    }
+  }
+
+  console.log(`\nImported: ${imported}, Skipped: ${skipped}${dryRun ? " (dry-run)" : ""}`);
+}
+
+// =============================================================================
+// Main entry point
+// =============================================================================
+
+async function main(): Promise<void> {
+  const command = process.argv[2];
+  const ledgerPath = resolveLedgerPath();
+
+  if (!command || command === "help" || command === "--help" || command === "-h") {
+    printUsage();
+    return;
+  }
+
+  if (command === "--version" || command === "-v") {
+    console.log("0.1.0");
+    return;
+  }
+
+  switch (command) {
+    case "add":
+      await handleAdd(ledgerPath);
+      break;
+    case "last":
+      await handleLast(ledgerPath);
+      break;
+    case "show":
+      await handleShow(ledgerPath);
+      break;
+    case "search":
+      await handleSearch(ledgerPath);
+      break;
+    case "explain":
+      await handleExplain(ledgerPath);
+      break;
+    case "import":
+      await handleImport(ledgerPath);
+      break;
+    default:
+      exitWithError(`Unknown command: "${command}"`, "Run 'audit-ledger help' for available commands");
+  }
+}
+
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});
