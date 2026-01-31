@@ -44,4 +44,6 @@ jobs:
 
       - name: Run eval suite
         run: |
+          echo "Running recur evals..."
           ../recur/recur eval --config evals/recur.yaml
+          echo "✓ All evals passed"

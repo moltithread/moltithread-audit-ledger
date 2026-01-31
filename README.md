@@ -85,35 +85,40 @@ node dist/cli.js import clawdbot tool-calls.jsonl --ledger ./memory/action-ledge
 node dist/cli.js import clawdbot tool-calls.jsonl --dry-run
 ```
 
-**Input format** (JSONL, one event per line):
-
-```json
-{
-  "tool": "Write",
-  "arguments": { "path": "/tmp/test.txt" },
-  "result": "success",
-  "timestamp": "2026-01-31T12:00:00.000Z"
-}
-```
-
-Required fields:
-
-- `tool` (string): Tool name (e.g., "Read", "Write", "Edit", "exec", "browser", "web_search", "message")
-- `result` ("success" | "failure"): Outcome of the tool call
-
-Optional fields:
-
-- `arguments` (object): Tool arguments
-- `timestamp` (ISO datetime): When the call occurred
-- `files` (array): Files touched by the operation
-- `channel`, `session`, `request`: Context fields
-- `error`, `output`: Additional metadata
-
 See: [`docs/adapters/clawdbot.md`](docs/adapters/clawdbot.md) for full documentation.
+
+## Web Viewer
+
+A static HTML viewer is available at [`docs/viewer/index.html`](docs/viewer/index.html).
+
+**Features:**
+- Load JSONL files via drag-and-drop or file picker
+- Filter by date range, action type, or free-text search in summary
+- Expandable entries showing the 3-section explanation (What I Did, Assumptions, Uncertainties)
+- Works offline — no server required
+
+**Usage:**
+1. Open `docs/viewer/index.html` directly in a browser
+2. Drag a `.jsonl` ledger file onto the drop zone (or click to select)
+3. Use the filters to find specific entries
+4. Click an entry to expand and see full details
+
+Or host it via GitHub Pages: `https://<user>.github.io/moltithread-audit-ledger/viewer/`
 
 ## Ledger entry schema
 
 See: `docs/SCHEMA.md`
+
+## Evals
+
+This project includes a [recur](https://github.com/ImWillieBeamin/recur) eval suite that validates audit entries have required fields and contain no secrets. Evals run in CI on every push/PR.
+
+```bash
+# Run evals locally (requires recur binary on PATH)
+npm run eval
+```
+
+See: `docs/EVALS.md` for setup and configuration.
 
 ## Roadmap
 
