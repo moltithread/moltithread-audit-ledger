@@ -41,7 +41,7 @@ const DEFAULT_REPLACEMENT = "[REDACTED]" as const;
  * Key name patterns that indicate sensitive data (case-insensitive).
  * Matches common credential/token field names.
  */
-const SENSITIVE_KEY_PATTERNS: readonly RegExp[] = [
+const SENSITIVE_KEY_PATTERNS = [
   /^(api[_-]?key|apikey)$/i,
   /^(auth[_-]?token|authtoken)$/i,
   /^(access[_-]?token|accesstoken)$/i,
@@ -60,13 +60,13 @@ const SENSITIVE_KEY_PATTERNS: readonly RegExp[] = [
   /^(client[_-]?secret|clientsecret)$/i,
   /^(signing[_-]?key|signingkey)$/i,
   /^(encryption[_-]?key|encryptionkey)$/i,
-];
+] as const satisfies readonly RegExp[];
 
 /**
  * Value patterns that indicate sensitive data regardless of key name.
  * These are designed to be conservative to avoid false positives.
  */
-const SENSITIVE_VALUE_PATTERNS: readonly RegExp[] = [
+const SENSITIVE_VALUE_PATTERNS = [
   // Bearer tokens: "Bearer <token>" or "bearer <token>"
   /\bBearer\s+[A-Za-z0-9\-_\.]{20,}\b/i,
 
@@ -109,7 +109,7 @@ const SENSITIVE_VALUE_PATTERNS: readonly RegExp[] = [
   // Inline key=value patterns for sensitive keys in strings
   // Matches: password=xxx, token=xxx, api_key=xxx, secret=xxx (with quotes or without)
   /\b(password|passwd|pwd|token|api[_-]?key|secret|auth[_-]?token|access[_-]?token)\s*[=:]\s*["']?[^\s"',;]{4,}["']?/i,
-];
+] as const satisfies readonly RegExp[];
 
 /**
  * Check if a key name is sensitive.
