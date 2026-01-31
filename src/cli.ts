@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { appendEntry, makeId, readEntries } from "./ledger.js";
+import { formatExplain, type ExplainFormat } from "./explain.js";
 import { AuditEntrySchema, type AuditEntry } from "./schema.js";
 
 function getArg(flag: string) {
@@ -17,6 +18,10 @@ function getArgs(flag: string) {
   return out.filter(Boolean);
 }
 
+function hasFlag(flag: string) {
+  return process.argv.includes(flag);
+}
+
 function usage() {
   console.log(`audit-ledger
 
@@ -24,6 +29,8 @@ Commands:
   add --type <type> --summary <text> [--artifact <x> ...] [--did <x> ...] [--assume <x> ...] [--unsure <x> ...] [--suggest <x> ...] [--observed <x> ...] [--ledger <path>]
   last <n> [--ledger <path>]
   show <id> [--ledger <path>]
+  explain <id> [--md] [--ledger <path>]
+  explain last [<n>] [--md] [--ledger <path>]
   search <term> [--ledger <path>]
 
 Types:
@@ -115,6 +122,44 @@ if (cmd === "search") {
   for (const e of hits) {
     console.log(`${e.id}  ${e.ts}  ${e.action.type}  ${e.action.summary}`);
   }
+  process.exit(0);
+}
+
+if (cmd === "explain") {
+  const arg = process.argv[3];
+  if (!arg) {
+    console.error("Usage: explain <id> or explain last [<n>]");
+    process.exit(1);
+  }
+
+  const format: ExplainFormat = hasFlag("--md") ? "markdown" : "text";
+  const entries = await loadAll();
+
+  if (entries.length === 0) {
+    console.error("No entries in ledger");
+    process.exit(1);
+  }
+
+  let entry: AuditEntry | undefined;
+
+  if (arg === "last") {
+    // explain last [<n>] - n=1 means most recent, n=2 means second-to-last, etc.
+    const n = Number(process.argv[4]) || 1;
+    if (n < 1 || n > entries.length) {
+      console.error(`Invalid offset: ${n} (ledger has ${entries.length} entries)`);
+      process.exit(1);
+    }
+    entry = entries[entries.length - n];
+  } else {
+    entry = entries.find((x) => x.id === arg);
+  }
+
+  if (!entry) {
+    console.error("Not found:", arg);
+    process.exit(1);
+  }
+
+  console.log(formatExplain(entry, format));
   process.exit(0);
 }
 
