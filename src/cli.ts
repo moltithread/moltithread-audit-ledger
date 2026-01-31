@@ -18,6 +18,7 @@ import {
 } from "./schema.js";
 import { redactObject, RedactionError, type RedactMode } from "./redact.js";
 import { parseClawdbotJsonl } from "./adapters/clawdbot.js";
+import { parseClaudeCodeJsonl } from "./adapters/claude_code.js";
 
 // =============================================================================
 // Terminal color helpers
@@ -297,6 +298,7 @@ ${c(BOLD, "EXAMPLES")}
 
   ${c(DIM, "# Import from clawdbot logs")}
   audit-ledger import clawdbot events.jsonl --dry-run
+  audit-ledger import claude-code events.jsonl --dry-run
 
 ${c(BOLD, "ENVIRONMENT")}
   AUDIT_LEDGER_PATH   Default ledger file path
@@ -602,17 +604,17 @@ async function handleImport(ledgerPath: string): Promise<void> {
   const format = process.argv[3];
   const inputFile = process.argv[4];
 
-  if (format !== "clawdbot") {
+  if (format !== "clawdbot" && format !== "claude-code") {
     exitWithError(
       `Unknown import format: ${format ?? "(none)"}`,
-      "Supported formats: clawdbot",
+      "Supported formats: clawdbot, claude-code",
     );
   }
 
   if (!inputFile) {
     exitWithError(
       "Missing input file",
-      "Usage: audit-ledger import clawdbot <file.jsonl> [--dry-run]",
+      "Usage: audit-ledger import <clawdbot|claude-code> <file.jsonl> [--dry-run]",
     );
   }
 
@@ -627,7 +629,10 @@ async function handleImport(ledgerPath: string): Promise<void> {
   let imported = 0;
   let skipped = 0;
 
-  for (const entry of parseClawdbotJsonl(content)) {
+  const iterator =
+    format === "clawdbot" ? parseClawdbotJsonl(content) : parseClaudeCodeJsonl(content);
+
+  for (const entry of iterator) {
     try {
       let finalEntry = entry;
 

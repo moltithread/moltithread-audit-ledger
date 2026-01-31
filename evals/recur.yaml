@@ -1,23 +1,20 @@
 runner:
   command: node ./runner.js
-  timeout: 10s
+  timeout: 20s
 
 dataset:
-  path: ./dataset.jsonl
+  path: ./test_cases.jsonl
 
 checks:
-  - name: required_fields
+  - name: output_fields
     type: required_fields
     severity: fail
     params:
       fields:
-        - id
-        - ts
-        - action
-        - what_i_did
-        - assumptions
-        - uncertainties
+        - case_id
+        - ok
+        - exit_code
 
-  - name: no_secrets
+  - name: no_secrets_in_output
     type: no_secrets
     severity: fail

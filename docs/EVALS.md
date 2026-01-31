@@ -47,40 +47,34 @@ Eval artifacts are written to `evals/out/` which is gitignored. Do not commit ge
 
 Defines the runner, dataset, and checks:
 
-- **runner**: Executes `node ./runner.js` which reads test cases from stdin and outputs audit entries
-- **dataset**: Test cases in `evals/dataset.jsonl`
+- **runner**: Executes `node ./runner.js` which reads test cases from stdin and outputs a structured JSON result
+- **dataset**: Test cases in `evals/test_cases.jsonl`
 - **checks**:
-  - `required_fields` — ensures `id`, `ts`, `action`, `what_i_did`, `assumptions`, `uncertainties` exist
-  - `no_secrets` — fails if any secret patterns (tokens, passwords, API keys) are detected
+  - `required_fields` — ensures `case_id`, `ok`, `exit_code` exist
+  - `no_secrets` — fails if any secret patterns (tokens, passwords, API keys) are detected in runner output
 
-### `evals/dataset.jsonl`
+### `evals/test_cases.jsonl`
 
-Each line is a JSON test case with an `id` and `input` object. The runner transforms these into audit entries that recur checks validate.
+Each line is a JSON test case with a `case_id`, `test_type`, and optional `fixture` path.
 
 ### `evals/runner.js`
 
-Deterministic runner that:
+Runner that:
 
-- Uses a fixed timestamp (`2026-01-31T00:00:00.000Z`) for reproducibility
-- Generates stable IDs from test case IDs
-- Transforms input fields into the audit entry schema
+- Reads a single test case JSON from stdin
+- Executes the specified test (redaction/import/schema invariants)
+- Prints a structured result object (see `evals/output_schema.json`)
 
 ## Adding Test Cases
 
-Add new cases to `evals/dataset.jsonl`:
+Add new cases to `evals/test_cases.jsonl`:
 
 ```json
 {
-  "id": "my-test",
-  "input": {
-    "request": "description",
-    "action_type": "api_call",
-    "summary": "Did something",
-    "artifacts": [],
-    "did": ["step 1"],
-    "assume": ["precondition"],
-    "unsure": ["uncertainty"]
-  }
+  "case_id": "my-test",
+  "level": "L1",
+  "test_type": "viewer_schema_compat",
+  "fixture": "fixtures/viewer_compat_ledger.jsonl"
 }
 ```
 
