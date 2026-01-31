@@ -4,6 +4,9 @@ import {
   AuditEntrySchema,
   ACTION_TYPES,
   isActionType,
+  TYPE_ALIASES,
+  isTypeAlias,
+  resolveTypeAlias,
   ContextSchema,
   ActionSchema,
   VerificationSchema,
@@ -25,6 +28,7 @@ test("schema accepts minimal valid entry", () => {
 
 test("ACTION_TYPES contains all expected types", () => {
   const expectedTypes = [
+    "file_read",
     "file_write",
     "file_edit",
     "browser",
@@ -189,4 +193,57 @@ test("AuditEntrySchema rejects empty summary", () => {
   };
 
   assert.throws(() => AuditEntrySchema.parse(emptySummary));
+});
+
+// -----------------------------------------------------------------------------
+// Type aliases
+// -----------------------------------------------------------------------------
+
+test("TYPE_ALIASES contains expected mappings", () => {
+  assert.equal(TYPE_ALIASES.e, "exec");
+  assert.equal(TYPE_ALIASES.x, "exec");
+  assert.equal(TYPE_ALIASES.r, "file_read");
+  assert.equal(TYPE_ALIASES.w, "file_write");
+  assert.equal(TYPE_ALIASES.d, "file_edit");
+  assert.equal(TYPE_ALIASES.b, "browser");
+  assert.equal(TYPE_ALIASES.a, "api_call");
+  assert.equal(TYPE_ALIASES.m, "message_send");
+  assert.equal(TYPE_ALIASES.c, "config_change");
+  assert.equal(TYPE_ALIASES.o, "other");
+});
+
+test("isTypeAlias returns true for valid aliases", () => {
+  const validAliases = ["e", "x", "r", "w", "d", "b", "a", "m", "c", "o"];
+  for (const alias of validAliases) {
+    assert.ok(isTypeAlias(alias), `Expected "${alias}" to be a valid alias`);
+  }
+});
+
+test("isTypeAlias returns false for non-aliases", () => {
+  const nonAliases = ["exec", "file_write", "z", "", "EX", "unknown"];
+  for (const value of nonAliases) {
+    assert.ok(!isTypeAlias(value), `Expected "${value}" to not be an alias`);
+  }
+});
+
+test("resolveTypeAlias resolves single-letter aliases", () => {
+  assert.equal(resolveTypeAlias("e"), "exec");
+  assert.equal(resolveTypeAlias("r"), "file_read");
+  assert.equal(resolveTypeAlias("w"), "file_write");
+  assert.equal(resolveTypeAlias("d"), "file_edit");
+  assert.equal(resolveTypeAlias("b"), "browser");
+  assert.equal(resolveTypeAlias("a"), "api_call");
+});
+
+test("resolveTypeAlias returns full type names as-is", () => {
+  for (const type of ACTION_TYPES) {
+    assert.equal(resolveTypeAlias(type), type, `Expected "${type}" to resolve to itself`);
+  }
+});
+
+test("resolveTypeAlias returns undefined for invalid values", () => {
+  assert.equal(resolveTypeAlias("invalid"), undefined);
+  assert.equal(resolveTypeAlias("z"), undefined);
+  assert.equal(resolveTypeAlias(""), undefined);
+  assert.equal(resolveTypeAlias("EXEC"), undefined);
 });

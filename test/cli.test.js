@@ -703,3 +703,454 @@ test("explain on empty ledger gives error", async () => {
   assert.equal(code, 1);
   assert.ok(stderr.includes("empty"));
 });
+
+// -----------------------------------------------------------------------------
+// Type aliases
+// -----------------------------------------------------------------------------
+
+test("add accepts type alias 'e' for exec", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "add",
+    "-t",
+    "e",
+    "--summary",
+    "Ran tests",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.type, "exec");
+});
+
+test("add accepts type alias 'w' for file_write", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "add",
+    "-t",
+    "w",
+    "--summary",
+    "Wrote file",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.type, "file_write");
+});
+
+test("add accepts type alias 'd' for file_edit", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "add",
+    "-t",
+    "d",
+    "--summary",
+    "Edited file",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.type, "file_edit");
+});
+
+test("add accepts type alias 'x' for exec (alternate)", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "add",
+    "-t",
+    "x",
+    "--summary",
+    "Executed command",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.type, "exec");
+});
+
+test("add -t flag works same as --type", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "add",
+    "-t",
+    "api_call",
+    "--summary",
+    "Called API",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.type, "api_call");
+});
+
+test("invalid type alias gives error with alias list", async () => {
+  const ledger = tempLedger();
+  const { code, stderr } = await runCli([
+    "add",
+    "-t",
+    "z",
+    "--summary",
+    "test",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 1);
+  assert.ok(stderr.includes("Invalid type"));
+  assert.ok(stderr.includes("e=exec") || stderr.includes("Aliases"));
+});
+
+// -----------------------------------------------------------------------------
+// Quick capture (q command)
+// -----------------------------------------------------------------------------
+
+test("q command creates entry with summary only", async () => {
+  const ledger = tempLedger();
+  const { code, stdout } = await runCli([
+    "q",
+    "deployed to production",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+  assert.ok(stdout.length > 10); // ID returned
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.summary, "deployed to production");
+  assert.equal(entry.action.type, "other"); // default type
+});
+
+test("q command with type prefix creates entry with specified type", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "q",
+    "exec",
+    "ran npm test",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.summary, "ran npm test");
+  assert.equal(entry.action.type, "exec");
+});
+
+test("q command with type alias creates entry with resolved type", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli(["q", "e", "ran tests", "--ledger", ledger]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.summary, "ran tests");
+  assert.equal(entry.action.type, "exec");
+});
+
+test("q command with multi-word summary", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli([
+    "q",
+    "this",
+    "is",
+    "a",
+    "long",
+    "summary",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.summary, "this is a long summary");
+});
+
+test("q command respects AUDIT_DEFAULT_TYPE env var", async () => {
+  const ledger = tempLedger();
+  const { code } = await runCli(["q", "automated task", "--ledger", ledger], {
+    env: { AUDIT_DEFAULT_TYPE: "exec" },
+  });
+  assert.equal(code, 0);
+
+  const content = fs.readFileSync(ledger, "utf8");
+  const entry = JSON.parse(content.trim());
+  assert.equal(entry.action.type, "exec");
+});
+
+test("q command without summary gives error", async () => {
+  const ledger = tempLedger();
+  const { code, stderr } = await runCli(["q", "--ledger", ledger]);
+  assert.equal(code, 1);
+  assert.ok(stderr.includes("Missing summary") || stderr.includes("error"));
+});
+
+// -----------------------------------------------------------------------------
+// Today command
+// -----------------------------------------------------------------------------
+
+test("today command shows entries from today", async () => {
+  const ledger = tempLedger();
+
+  // Add an entry (will be from today)
+  await runCli([
+    "add",
+    "-t",
+    "exec",
+    "--summary",
+    "Today task",
+    "--ledger",
+    ledger,
+  ]);
+
+  const { code, stdout } = await runCli(["today", "--ledger", ledger]);
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("Today task"));
+});
+
+test("today command with --md outputs markdown", async () => {
+  const ledger = tempLedger();
+
+  await runCli([
+    "add",
+    "-t",
+    "exec",
+    "--summary",
+    "Markdown test",
+    "--ledger",
+    ledger,
+  ]);
+
+  const { code, stdout } = await runCli(["today", "--md", "--ledger", ledger]);
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("# Activity"));
+  assert.ok(stdout.includes("## exec"));
+});
+
+test("today command on empty ledger warns gracefully", async () => {
+  const ledger = tempLedger();
+  const { code, stderr } = await runCli(["today", "--ledger", ledger]);
+  assert.equal(code, 0);
+  assert.ok(stderr.includes("No entries") || stderr.includes("warn"));
+});
+
+// -----------------------------------------------------------------------------
+// Summary command
+// -----------------------------------------------------------------------------
+
+test("summary command requires --since", async () => {
+  const ledger = tempLedger();
+  const { code, stderr } = await runCli(["summary", "--ledger", ledger]);
+  assert.equal(code, 1);
+  assert.ok(stderr.includes("--since"));
+});
+
+test("summary command with invalid time spec gives error", async () => {
+  const ledger = tempLedger();
+  const { code, stderr } = await runCli([
+    "summary",
+    "--since",
+    "invalid",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 1);
+  assert.ok(stderr.includes("Invalid time spec"));
+});
+
+test("summary command parses hours correctly", async () => {
+  const ledger = tempLedger();
+
+  await runCli([
+    "add",
+    "-t",
+    "exec",
+    "--summary",
+    "Recent task",
+    "--ledger",
+    ledger,
+  ]);
+
+  const { code, stdout } = await runCli([
+    "summary",
+    "--since",
+    "1h",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("Recent task"));
+});
+
+test("summary command parses days correctly", async () => {
+  const ledger = tempLedger();
+
+  await runCli([
+    "add",
+    "-t",
+    "exec",
+    "--summary",
+    "Day task",
+    "--ledger",
+    ledger,
+  ]);
+
+  const { code, stdout } = await runCli([
+    "summary",
+    "--since",
+    "1d",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("Day task"));
+});
+
+test("summary command with --format md outputs markdown", async () => {
+  const ledger = tempLedger();
+
+  await runCli([
+    "add",
+    "-t",
+    "api_call",
+    "--summary",
+    "API call for summary",
+    "--ledger",
+    ledger,
+  ]);
+
+  const { code, stdout } = await runCli([
+    "summary",
+    "--since",
+    "1h",
+    "--format",
+    "md",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("# Activity"));
+  assert.ok(stdout.includes("## api_call"));
+});
+
+// -----------------------------------------------------------------------------
+// Claude Code import
+// -----------------------------------------------------------------------------
+
+test("import claude-code from stdin works", async () => {
+  const ledger = tempLedger();
+  const event = JSON.stringify({
+    tool_name: "Bash",
+    tool_input: { command: "ls -la" },
+    success: true,
+  });
+
+  const { code, stdout } = await runCli(
+    ["import", "claude-code", "--stdin", "--ledger", ledger],
+    { stdin: event },
+  );
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("Imported: 1"));
+});
+
+test("import claude-code handles multiple events in JSONL", async () => {
+  const ledger = tempLedger();
+  const events = [
+    '{"tool_name":"Read","tool_input":{"file_path":"a.ts"},"success":true}',
+    '{"tool_name":"Write","tool_input":{"file_path":"b.ts"},"success":true}',
+  ].join("\n");
+
+  const { code, stdout } = await runCli(
+    ["import", "claude-code", "--stdin", "--ledger", ledger],
+    { stdin: events },
+  );
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("Imported: 2"));
+});
+
+test("import claude-code --dry-run does not write", async () => {
+  const ledger = tempLedger();
+  const event = JSON.stringify({
+    tool_name: "Bash",
+    tool_input: { command: "test" },
+    success: true,
+  });
+
+  const { code, stdout } = await runCli(
+    ["import", "claude-code", "--stdin", "--dry-run", "--ledger", ledger],
+    { stdin: event },
+  );
+  assert.equal(code, 0);
+  assert.ok(stdout.includes("dry-run"));
+  assert.ok(!fs.existsSync(ledger));
+});
+
+test("import requires valid format", async () => {
+  const ledger = tempLedger();
+  const { code, stderr } = await runCli([
+    "import",
+    "invalid-format",
+    "--stdin",
+    "--ledger",
+    ledger,
+  ]);
+  assert.equal(code, 1);
+  assert.ok(stderr.includes("Unknown import format"));
+});
+
+// -----------------------------------------------------------------------------
+// Help shows new features
+// -----------------------------------------------------------------------------
+
+test("help shows quick capture command", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("q"));
+  assert.ok(stdout.includes("Quick capture"));
+});
+
+test("help shows today command", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("today"));
+});
+
+test("help shows summary command", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("summary"));
+});
+
+test("help shows type aliases", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("TYPE ALIASES"));
+  assert.ok(stdout.includes("e=exec"));
+});
+
+test("help shows AUDIT_DEFAULT_TYPE env var", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("AUDIT_DEFAULT_TYPE"));
+});
+
+test("help shows claude-code import format", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("claude-code"));
+});
+
+test("help shows interactive mode flag", async () => {
+  const { stdout } = await runCli(["help"]);
+  assert.ok(stdout.includes("-i") || stdout.includes("--interactive"));
+});
