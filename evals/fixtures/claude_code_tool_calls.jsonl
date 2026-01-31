@@ -1,0 +1,2 @@
+{"tool_name":"write_file","tool_input":{"path":"/tmp/cc.txt","content":"hello"},"status":"success","timestamp":"2026-01-31T12:01:00.000Z","request":"write a file"}
+{"tool_name":"exec","tool_input":{"command":"echo ok"},"status":"success","timestamp":"2026-01-31T12:02:00.000Z","request":"run a command"}

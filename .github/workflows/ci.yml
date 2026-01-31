@@ -36,14 +36,21 @@ jobs:
           npm ci
           npm run build
 
-      - name: Build recur
+      - name: Install recur
         run: |
-          git clone https://github.com/ImWillieBeamin/recur.git ../recur
-          cd ../recur
-          make build
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          curl -fsSL https://raw.githubusercontent.com/ImWillieBeamin/recur/main/install.sh | bash
+          recur --version
 
       - name: Run eval suite
         run: |
           echo "Running recur evals..."
-          ../recur/recur eval --config evals/recur.yaml
+          recur eval --config evals/recur.yaml
           echo "✓ All evals passed"
+
+      - name: Upload eval artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recur-eval-artifacts
+          path: evals/out
