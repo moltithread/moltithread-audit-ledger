@@ -10,7 +10,7 @@ Core principle:
 
 - **Append-only JSONL ledger** format (no secrets; references only)
 - **CLI** to write/view/search entries
-- **Optional adapters** (coming) for agents (Clawdbot, etc.)
+- **Adapters** for agent platforms (Clawdbot, etc.)
 
 ## Quick start
 
@@ -70,6 +70,22 @@ if (containsSecrets(data)) {
   /* ... */
 }
 ```
+
+## Adapters
+
+### Clawdbot
+
+Import tool-call events from Clawdbot into the audit ledger:
+
+```bash
+# Import from JSONL file
+node dist/cli.js import clawdbot tool-calls.jsonl --ledger ./memory/action-ledger.jsonl
+
+# Preview without writing (dry-run)
+node dist/cli.js import clawdbot tool-calls.jsonl --dry-run
+```
+
+See: [`docs/adapters/clawdbot.md`](docs/adapters/clawdbot.md) for full documentation.
 
 ## Web Viewer
 

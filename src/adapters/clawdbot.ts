@@ -3,8 +3,13 @@
  *
  * Transforms Clawdbot tool-call events into audit-ledger entries.
  */
+
 import { z } from "zod";
-import { AuditEntrySchema, type AuditEntry } from "../schema.js";
+import {
+  AuditEntrySchema,
+  type AuditEntry,
+  type ActionType,
+} from "../schema.js";
 import { makeId } from "../ledger.js";
 
 /**
@@ -28,49 +33,40 @@ export const ClawdbotToolCallSchema = z.object({
 
 export type ClawdbotToolCall = z.infer<typeof ClawdbotToolCallSchema>;
 
-export type TransformOptions = {
-  id?: string;
-  assumptions?: string[];
-  uncertainties?: string[];
-  suggestedVerification?: string[];
-};
-
 /**
  * Map Clawdbot tool names to audit-ledger action types.
  */
-const TOOL_TYPE_MAP: Record<string, AuditEntry["action"]["type"]> = {
+const TOOL_TYPE_MAP: Readonly<Record<string, ActionType>> = {
   // File operations
-  Read: "file_write", // Read is logged as file access
+  Read: "file_write", // Read is technically not a write, but we log it as file access
   Write: "file_write",
   Edit: "file_edit",
+
   // Execution
   exec: "exec",
   process: "exec",
+
   // Browser
   browser: "browser",
+
   // Web/API
   web_search: "api_call",
   web_fetch: "api_call",
   image: "api_call",
   tts: "api_call",
+
   // Messaging
   message: "message_send",
+
   // Node operations
   nodes: "other",
   canvas: "other",
 };
 
 /**
- * Truncate a string to a maximum length, appending "..." if truncated.
- */
-function truncate(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 3) + "...";
-}
-
-/**
  * Determine the action type for a Clawdbot tool.
  */
-function getActionType(toolName: string): AuditEntry["action"]["type"] {
+function getActionType(toolName: string): ActionType {
   return TOOL_TYPE_MAP[toolName] ?? "other";
 }
 
@@ -111,6 +107,11 @@ function generateSummary(event: ClawdbotToolCall): string {
     default:
       return `${tool}${status}`;
   }
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 3) + "...";
 }
 
 /**
@@ -208,11 +209,23 @@ function generateWhatIDid(event: ClawdbotToolCall): string[] {
   return steps;
 }
 
+/** Options for transforming tool calls */
+export interface TransformOptions {
+  /** Override the generated ID */
+  id?: string;
+  /** Additional assumptions to include */
+  assumptions?: string[];
+  /** Additional uncertainties to include */
+  uncertainties?: string[];
+  /** Additional verification suggestions */
+  suggestedVerification?: string[];
+}
+
 /**
  * Transform a Clawdbot tool-call event into an audit-ledger entry.
  */
 export function transformToolCall(
-  event: unknown,
+  event: ClawdbotToolCall,
   options: TransformOptions = {},
 ): AuditEntry {
   const validated = ClawdbotToolCallSchema.parse(event);
@@ -261,44 +274,22 @@ export function transformToolCall(
 }
 
 /**
- * Result of parsing a JSONL line.
- */
-export type ParseLineResult =
-  | { ok: true; entry: AuditEntry }
-  | { ok: false; error: string; line: string };
-
-/**
- * Parse a single JSONL line, returning a result object instead of throwing.
- */
-export function parseJsonlLine(line: string): ParseLineResult {
-  const trimmed = line.trim();
-  if (!trimmed) {
-    return { ok: false, error: "Empty line", line };
-  }
-
-  try {
-    const event = JSON.parse(trimmed);
-    const entry = transformToolCall(event);
-    return { ok: true, entry };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message, line: trimmed.slice(0, 100) };
-  }
-}
-
-/**
  * Parse and transform multiple Clawdbot tool-call events from JSONL.
- * Yields each transformed entry. Invalid lines are logged and skipped.
+ * Yields each transformed entry.
  */
 export function* parseClawdbotJsonl(jsonl: string): Generator<AuditEntry> {
   const lines = jsonl.split("\n");
 
   for (const line of lines) {
-    const result = parseJsonlLine(line);
-    if (result.ok) {
-      yield result.entry;
-    } else if (result.error !== "Empty line") {
-      console.error(`Skipping invalid line: ${result.error}`);
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    try {
+      const event = JSON.parse(trimmed);
+      yield transformToolCall(event);
+    } catch (err) {
+      // Skip invalid lines, or you could throw/log
+      console.error(`Skipping invalid line: ${(err as Error).message}`);
     }
   }
 }
@@ -306,6 +297,6 @@ export function* parseClawdbotJsonl(jsonl: string): Generator<AuditEntry> {
 /**
  * Transform multiple events at once.
  */
-export function transformBatch(events: unknown[]): AuditEntry[] {
+export function transformBatch(events: ClawdbotToolCall[]): AuditEntry[] {
   return events.map((e) => transformToolCall(e));
 }

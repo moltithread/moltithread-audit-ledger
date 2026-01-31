@@ -16,4 +16,5 @@
 ## v0.3
 
 - [x] Web viewer (static) for filtering/sorting
-- [ ] Integrations: Clawdbot hook to auto-log tool calls
+- [x] Clawdbot adapter: import tool-call events (closes #3)
+- [ ] Real-time hook integration for live tool-call logging

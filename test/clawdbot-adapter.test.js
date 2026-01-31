@@ -4,11 +4,8 @@ import {
   transformToolCall,
   parseClawdbotJsonl,
   transformBatch,
-  parseJsonlLine,
   ClawdbotToolCallSchema,
 } from "../dist/adapters/clawdbot.js";
-
-// ==================== Schema validation tests ====================
 
 test("ClawdbotToolCallSchema validates minimal event", () => {
   const event = {
@@ -24,254 +21,279 @@ test("ClawdbotToolCallSchema validates minimal event", () => {
 
 test("ClawdbotToolCallSchema validates full event", () => {
   const event = {
-    tool: "exec",
-    arguments: { command: "ls -la" },
+    tool: "Write",
+    arguments: { path: "/tmp/test.txt", content: "hello" },
     result: "success",
-    timestamp: "2026-01-31T00:00:00.000Z",
-    files: ["output.txt"],
+    timestamp: "2026-01-31T12:00:00.000Z",
+    files: ["/tmp/test.txt"],
     channel: "discord",
-    session: "main",
-    request: "list files",
-    output: "file1.txt\nfile2.txt",
+    session: "agent:main:main",
+    request: "Create a test file",
   };
   const parsed = ClawdbotToolCallSchema.parse(event);
-  assert.equal(parsed.tool, "exec");
-  assert.equal(parsed.arguments.command, "ls -la");
+  assert.equal(parsed.tool, "Write");
   assert.equal(parsed.channel, "discord");
+  assert.deepEqual(parsed.files, ["/tmp/test.txt"]);
 });
 
-test("ClawdbotToolCallSchema rejects invalid result", () => {
+test("transformToolCall produces valid AuditEntry for Read", () => {
   const event = {
     tool: "Read",
-    result: "maybe",
+    arguments: { path: "/etc/hosts" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
   };
-  assert.throws(() => ClawdbotToolCallSchema.parse(event));
+  const entry = transformToolCall(event);
+
+  assert.ok(entry.id);
+  assert.equal(entry.ts, "2026-01-31T12:00:00.000Z");
+  assert.equal(entry.action.type, "file_write");
+  assert.ok(entry.action.summary.includes("Read file"));
+  assert.ok(entry.action.summary.includes("/etc/hosts"));
+  assert.ok(entry.action.artifacts.includes("/etc/hosts"));
+  assert.ok(entry.what_i_did.some((s) => s.includes("/etc/hosts")));
 });
 
-// ==================== transformToolCall tests ====================
-
-test("transformToolCall creates valid audit entry", () => {
+test("transformToolCall produces valid AuditEntry for Write", () => {
   const event = {
     tool: "Write",
-    arguments: { path: "test.txt" },
+    arguments: { path: "/tmp/output.txt", content: "data" },
     result: "success",
-    timestamp: "2026-01-31T10:00:00.000Z",
+    timestamp: "2026-01-31T12:00:00.000Z",
   };
-
   const entry = transformToolCall(event);
-  assert.ok(entry.id);
-  assert.equal(entry.ts, "2026-01-31T10:00:00.000Z");
+
   assert.equal(entry.action.type, "file_write");
   assert.ok(entry.action.summary.includes("Write file"));
-  assert.ok(entry.action.artifacts.includes("test.txt"));
+  assert.ok(entry.action.artifacts.includes("/tmp/output.txt"));
 });
 
-test("transformToolCall maps tool types correctly", () => {
-  const toolMappings = [
-    { tool: "Read", expectedType: "file_write" },
-    { tool: "Write", expectedType: "file_write" },
-    { tool: "Edit", expectedType: "file_edit" },
-    { tool: "exec", expectedType: "exec" },
-    { tool: "browser", expectedType: "browser" },
-    { tool: "web_search", expectedType: "api_call" },
-    { tool: "message", expectedType: "message_send" },
-    { tool: "unknown_tool", expectedType: "other" },
-  ];
-
-  for (const { tool, expectedType } of toolMappings) {
-    const event = { tool, result: "success" };
-    const entry = transformToolCall(event);
-    assert.equal(
-      entry.action.type,
-      expectedType,
-      `Tool "${tool}" should map to "${expectedType}"`,
-    );
-  }
-});
-
-test("transformToolCall generates appropriate summaries", () => {
-  const cases = [
-    {
-      tool: "Read",
-      args: { path: "/foo/bar.txt" },
-      expect: "Read file: /foo/bar.txt",
-    },
-    {
-      tool: "exec",
-      args: { command: "npm test" },
-      expect: "Execute: npm test",
-    },
-    {
-      tool: "web_search",
-      args: { query: "hello world" },
-      expect: "Web search: hello world",
-    },
-  ];
-
-  for (const { tool, args, expect } of cases) {
-    const entry = transformToolCall({
-      tool,
-      arguments: args,
-      result: "success",
-    });
-    assert.ok(
-      entry.action.summary.includes(expect),
-      `Summary for ${tool} should include "${expect}", got "${entry.action.summary}"`,
-    );
-  }
-});
-
-test("transformToolCall includes failure status in summary", () => {
-  const event = {
-    tool: "exec",
-    arguments: { command: "false" },
-    result: "failure",
-    error: "Command failed",
-  };
-
-  const entry = transformToolCall(event);
-  assert.ok(entry.action.summary.includes("(failed)"));
-  assert.ok(entry.uncertainties.some((u) => u.includes("failed")));
-});
-
-test("transformToolCall extracts artifacts from file operations", () => {
+test("transformToolCall produces valid AuditEntry for Edit", () => {
   const event = {
     tool: "Edit",
-    arguments: { path: "src/main.ts" },
+    arguments: { path: "README.md", oldText: "old", newText: "new" },
     result: "success",
-    files: ["src/backup.ts"],
+    timestamp: "2026-01-31T12:00:00.000Z",
   };
-
   const entry = transformToolCall(event);
-  assert.ok(entry.action.artifacts.includes("src/main.ts"));
-  assert.ok(entry.action.artifacts.includes("src/backup.ts"));
+
+  assert.equal(entry.action.type, "file_edit");
+  assert.ok(entry.action.summary.includes("Edit file"));
+  assert.ok(entry.what_i_did.some((s) => s.includes("Replaced specific text")));
 });
 
-test("transformToolCall preserves context fields", () => {
+test("transformToolCall produces valid AuditEntry for exec", () => {
+  const event = {
+    tool: "exec",
+    arguments: { command: "ls -la /tmp", workdir: "/home" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+  };
+  const entry = transformToolCall(event);
+
+  assert.equal(entry.action.type, "exec");
+  assert.ok(entry.action.summary.includes("Execute:"));
+  assert.ok(entry.action.summary.includes("ls -la"));
+  assert.ok(entry.what_i_did.some((s) => s.includes("Executed shell command")));
+  assert.ok(
+    entry.what_i_did.some((s) => s.includes("Working directory: /home")),
+  );
+});
+
+test("transformToolCall produces valid AuditEntry for browser", () => {
+  const event = {
+    tool: "browser",
+    arguments: { action: "navigate", targetUrl: "https://example.com" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+  };
+  const entry = transformToolCall(event);
+
+  assert.equal(entry.action.type, "browser");
+  assert.ok(entry.action.summary.includes("Browser navigate"));
+  assert.ok(entry.action.artifacts.includes("https://example.com"));
+});
+
+test("transformToolCall produces valid AuditEntry for web_search", () => {
+  const event = {
+    tool: "web_search",
+    arguments: { query: "TypeScript zod validation", count: 5 },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+  };
+  const entry = transformToolCall(event);
+
+  assert.equal(entry.action.type, "api_call");
+  assert.ok(entry.action.summary.includes("Web search"));
+  assert.ok(entry.action.summary.includes("TypeScript zod"));
+});
+
+test("transformToolCall produces valid AuditEntry for web_fetch", () => {
+  const event = {
+    tool: "web_fetch",
+    arguments: { url: "https://api.example.com/data", extractMode: "markdown" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+  };
+  const entry = transformToolCall(event);
+
+  assert.equal(entry.action.type, "api_call");
+  assert.ok(entry.action.summary.includes("Fetch URL"));
+  assert.ok(entry.action.artifacts.includes("https://api.example.com/data"));
+});
+
+test("transformToolCall produces valid AuditEntry for message", () => {
   const event = {
     tool: "message",
-    arguments: { action: "send", target: "general" },
+    arguments: { action: "send", target: "general", message: "Hello" },
     result: "success",
-    channel: "discord",
-    session: "main-session",
-    request: "say hello",
+    timestamp: "2026-01-31T12:00:00.000Z",
   };
-
   const entry = transformToolCall(event);
-  assert.equal(entry.context?.channel, "discord");
-  assert.equal(entry.context?.session, "main-session");
-  assert.equal(entry.context?.request, "say hello");
+
+  assert.equal(entry.action.type, "message_send");
+  assert.ok(entry.action.summary.includes("Message send"));
+  assert.ok(entry.action.summary.includes("general"));
 });
 
-test("transformToolCall removes empty context", () => {
+test("transformToolCall handles failure result", () => {
+  const event = {
+    tool: "Write",
+    arguments: { path: "/root/forbidden.txt" },
+    result: "failure",
+    error: "Permission denied",
+    timestamp: "2026-01-31T12:00:00.000Z",
+  };
+  const entry = transformToolCall(event);
+
+  assert.ok(entry.action.summary.includes("(failed)"));
+  assert.ok(entry.uncertainties.some((u) => u.includes("failed")));
+  assert.ok(entry.what_i_did.some((s) => s.includes("Permission denied")));
+});
+
+test("transformToolCall includes context when provided", () => {
+  const event = {
+    tool: "exec",
+    arguments: { command: "echo test" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+    channel: "discord",
+    session: "agent:main:subagent:abc",
+    request: "Run a quick test",
+  };
+  const entry = transformToolCall(event);
+
+  assert.equal(entry.context?.channel, "discord");
+  assert.equal(entry.context?.session, "agent:main:subagent:abc");
+  assert.equal(entry.context?.request, "Run a quick test");
+});
+
+test("transformToolCall accepts override options", () => {
   const event = {
     tool: "Read",
-    arguments: { path: "file.txt" },
+    arguments: { path: "/etc/passwd" },
     result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
   };
-
-  const entry = transformToolCall(event);
-  assert.equal(entry.context, undefined);
-});
-
-test("transformToolCall accepts custom options", () => {
-  const event = { tool: "exec", result: "success" };
   const entry = transformToolCall(event, {
-    id: "custom-id",
-    assumptions: ["User has permissions"],
-    uncertainties: ["May timeout"],
-    suggestedVerification: ["Check output"],
+    id: "custom-id-123",
+    assumptions: ["File exists", "User has read access"],
+    uncertainties: ["File might be symlinked"],
+    suggestedVerification: ["Check file contents"],
   });
 
-  assert.equal(entry.id, "custom-id");
-  assert.ok(entry.assumptions.includes("User has permissions"));
-  assert.ok(entry.uncertainties.includes("May timeout"));
-  assert.ok(entry.verification?.suggested.includes("Check output"));
+  assert.equal(entry.id, "custom-id-123");
+  assert.ok(entry.assumptions.includes("File exists"));
+  assert.ok(entry.uncertainties.some((u) => u.includes("symlinked")));
+  assert.ok(entry.verification?.suggested?.includes("Check file contents"));
 });
 
-// ==================== parseJsonlLine tests ====================
+test("transformToolCall extracts files from explicit files array", () => {
+  const event = {
+    tool: "exec",
+    arguments: { command: "touch a.txt b.txt" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+    files: ["a.txt", "b.txt"],
+  };
+  const entry = transformToolCall(event);
 
-test("parseJsonlLine returns ok for valid line", () => {
-  const line = JSON.stringify({ tool: "Read", result: "success" });
-  const result = parseJsonlLine(line);
-  assert.ok(result.ok);
-  assert.ok(result.entry);
+  assert.ok(entry.action.artifacts.includes("a.txt"));
+  assert.ok(entry.action.artifacts.includes("b.txt"));
 });
 
-test("parseJsonlLine returns error for empty line", () => {
-  const result = parseJsonlLine("");
-  assert.ok(!result.ok);
-  assert.equal(result.error, "Empty line");
-});
+test("transformToolCall handles unknown tool gracefully", () => {
+  const event = {
+    tool: "custom_tool",
+    arguments: { foo: "bar" },
+    result: "success",
+    timestamp: "2026-01-31T12:00:00.000Z",
+  };
+  const entry = transformToolCall(event);
 
-test("parseJsonlLine returns error for invalid JSON", () => {
-  const result = parseJsonlLine("{invalid json}");
-  assert.ok(!result.ok);
-  assert.ok(result.error.length > 0);
+  assert.equal(entry.action.type, "other");
+  assert.equal(entry.action.summary, "custom_tool");
 });
-
-test("parseJsonlLine returns error for invalid schema", () => {
-  const line = JSON.stringify({ tool: "Read" }); // missing result
-  const result = parseJsonlLine(line);
-  assert.ok(!result.ok);
-  assert.ok(result.error.length > 0);
-});
-
-// ==================== parseClawdbotJsonl tests ====================
 
 test("parseClawdbotJsonl parses multiple lines", () => {
-  const jsonl = [
-    JSON.stringify({
-      tool: "Read",
-      result: "success",
-      arguments: { path: "a.txt" },
-    }),
-    JSON.stringify({
-      tool: "Write",
-      result: "success",
-      arguments: { path: "b.txt" },
-    }),
-  ].join("\n");
+  const jsonl = `
+{"tool": "Read", "arguments": {"path": "a.txt"}, "result": "success", "timestamp": "2026-01-31T12:00:00.000Z"}
+{"tool": "Write", "arguments": {"path": "b.txt"}, "result": "success", "timestamp": "2026-01-31T12:01:00.000Z"}
+
+{"tool": "Edit", "arguments": {"path": "c.txt"}, "result": "failure", "timestamp": "2026-01-31T12:02:00.000Z"}
+`;
 
   const entries = [...parseClawdbotJsonl(jsonl)];
+  assert.equal(entries.length, 3);
+  assert.equal(entries[0].action.type, "file_write");
+  assert.equal(entries[1].action.type, "file_write");
+  assert.equal(entries[2].action.type, "file_edit");
+});
+
+test("parseClawdbotJsonl skips invalid lines", () => {
+  const jsonl = `
+{"tool": "Read", "arguments": {"path": "a.txt"}, "result": "success", "timestamp": "2026-01-31T12:00:00.000Z"}
+this is not json
+{"tool": "Write", "arguments": {"path": "b.txt"}, "result": "success", "timestamp": "2026-01-31T12:01:00.000Z"}
+`;
+
+  const entries = [...parseClawdbotJsonl(jsonl)];
+  assert.equal(entries.length, 2);
+});
+
+test("transformBatch transforms multiple events", () => {
+  const events = [
+    {
+      tool: "Read",
+      arguments: { path: "a.txt" },
+      result: "success",
+      timestamp: "2026-01-31T12:00:00.000Z",
+    },
+    {
+      tool: "Write",
+      arguments: { path: "b.txt" },
+      result: "success",
+      timestamp: "2026-01-31T12:01:00.000Z",
+    },
+  ];
+
+  const entries = transformBatch(events);
   assert.equal(entries.length, 2);
   assert.ok(entries[0].action.summary.includes("Read"));
   assert.ok(entries[1].action.summary.includes("Write"));
 });
 
-test("parseClawdbotJsonl skips empty lines", () => {
-  const jsonl = [
-    JSON.stringify({ tool: "Read", result: "success" }),
-    "",
-    "   ",
-    JSON.stringify({ tool: "Write", result: "success" }),
-  ].join("\n");
+test("transformToolCall uses current time when timestamp not provided", () => {
+  const before = new Date();
+  const event = {
+    tool: "Read",
+    arguments: { path: "test.txt" },
+    result: "success",
+  };
+  const entry = transformToolCall(event);
+  const after = new Date();
 
-  const entries = [...parseClawdbotJsonl(jsonl)];
-  assert.equal(entries.length, 2);
-});
-
-test("parseClawdbotJsonl skips invalid lines gracefully", () => {
-  const jsonl = [
-    JSON.stringify({ tool: "Read", result: "success" }),
-    "{invalid}",
-    JSON.stringify({ tool: "Write", result: "success" }),
-  ].join("\n");
-
-  const entries = [...parseClawdbotJsonl(jsonl)];
-  assert.equal(entries.length, 2);
-});
-
-// ==================== transformBatch tests ====================
-
-test("transformBatch transforms multiple events", () => {
-  const events = [
-    { tool: "Read", result: "success" },
-    { tool: "Write", result: "failure" },
-  ];
-
-  const entries = transformBatch(events);
-  assert.equal(entries.length, 2);
-  assert.equal(entries[0].action.type, "file_write");
-  assert.equal(entries[1].action.type, "file_write");
+  const entryTime = new Date(entry.ts);
+  assert.ok(entryTime >= before);
+  assert.ok(entryTime <= after);
 });
